@@ -8,6 +8,4 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY main.py .
 
-EXPOSE 8501
-
-CMD ["streamlit", "run", "main.py"]
+CMD ["python", "main.py"]

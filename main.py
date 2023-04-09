@@ -1,15 +1,22 @@
-import requests
 import openai
 import os
+import requests
 from bs4 import BeautifulSoup
-from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor
 from readabilipy import simple_json_from_html_string
-import streamlit as st
+from tqdm import tqdm
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram.ext import CommandHandler, ConversationHandler, MessageHandler, filters, ApplicationBuilder
+import validators
 
+telegram_token = os.environ.get("TELEGRAM_TOKEN", "xxx")
 apikey = os.environ.get("OPENAI_API_KEY", "xxx")
 model = os.environ.get("OPENAI_MODEL", "gpt-3.5-turbo")
-lang = os.environ.get("TS_LANG", "en_us")
+lang = os.environ.get("TS_LANG", "English")
 total_tokens=0
+
+SUMMARIZE = range(1)
+
 chunk_size=500
 
 def scrape(url):
@@ -35,7 +42,6 @@ def summarize(text):
     """
     Summarize the text using GPT API
     """
-    from concurrent.futures import ThreadPoolExecutor
 
     # Split the text into chunks
     import re
@@ -75,26 +81,54 @@ def call_gpt_api(text, is_key_takeaway):
     total_tokens += response.usage.total_tokens
     return message
 
-if 'OPENAI_API_KEY' not in os.environ:
-    st.warning('OPENAI_API_KEY environment variable is not defined', icon="⚠️")
-else:
-    st.title("Text Summarizer")
-    url_input=st.empty()
-    url=url_input.text_input("Enter URL", key="url")
-    if url:
-        total_tokens=0
-        pg_bar=st.progress(0)
-        with st.spinner("Loading..."):
-            title, text = scrape(url)
-            pg_bar.progress(30)
-            summary = summarize(text)
-            pg_bar.progress(100)
-            if model == "gpt-3.5-turbo":
-                cost = round(total_tokens/1000*0.02, 2)
-            elif model == "gpt-4-32k":
-                cost = round(total_tokens/1000*0.12, 2)
-            elif model == "gpt-4":
-                cost = round(total_tokens/1000*0.06, 2)
+async def wait_for_summarize(update, context):
+    await update.message.reply_text(
+        "Please provide an URL that I can read it for you."
+    )
+    return SUMMARIZE
 
-        st.text(f"Total tokens: {total_tokens}\nEstimated cost: ${cost}")
-        st.markdown(f"#### {title}\n{summary}")
+async def handle_summarize(update, context):
+    try:
+        user_input = update.message.text
+        if not validators.url(user_input):
+            await update.message.reply_text("It's not a valid URL.")
+            return SUMMARIZE
+
+        await update.message.reply_text("Processing...")
+        title, text = scrape(user_input)
+        summary = summarize(text)
+        if model == "gpt-3.5-turbo":
+            cost = round(total_tokens/1000*0.02, 2)
+        elif model == "gpt-4-32k":
+            cost = round(total_tokens/1000*0.12, 2)
+        elif model == "gpt-4":
+            cost = round(total_tokens/1000*0.06, 2)
+        await update.message.reply_text(f"{title}\n\n{summary}\n\nTotal tokens: {total_tokens}\nEstimated cost: ${cost}")
+    except Exception as e:
+        await update.message.reply_text(e)
+    return ConversationHandler.END
+
+async def done(update, context):
+    await update.message.reply_text('Okay, bye.')
+    return ConversationHandler.END
+
+def main():
+    try:
+        application = ApplicationBuilder().token(telegram_token).build()
+        conv_handler = ConversationHandler(
+            entry_points=[CommandHandler('summarize', wait_for_summarize)],
+            states={
+                SUMMARIZE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_summarize)]
+            },
+            fallbacks=[CommandHandler('done', done)],
+        )
+        application.add_handler(conv_handler)
+        application.run_polling()
+    except Exception as e:
+        print(e)
+
+if 'OPENAI_API_KEY' not in os.environ:
+    print('⚠️ OPENAI_API_KEY environment variable is not defined')
+else:
+    if __name__ == '__main__':
+        main()

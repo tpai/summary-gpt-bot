@@ -1,5 +1,6 @@
-streamlit
 readabilipy
+validators
 tqdm
 bs4
 openai
+python-telegram-bot
