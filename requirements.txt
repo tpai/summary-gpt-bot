@@ -1,0 +1,5 @@
+streamlit
+readabilipy
+tqdm
+bs4
+openai
