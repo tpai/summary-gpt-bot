@@ -67,7 +67,7 @@ def summarize(text):
     # Call the GPT API in parallel to summarize the text chunks
     summaries = []
     with ThreadPoolExecutor() as executor:
-        futures = [executor.submit(call_gpt_api, f"Summarize the following text using half the number of words in {lang}: {chunk}") for chunk in text_chunks]
+        futures = [executor.submit(call_gpt_api, f"Summarize the following text using half the number of words: {chunk}") for chunk in text_chunks]
         for future in tqdm(futures, total=len(text_chunks), desc="Summarizing"):
             while not future.done():
                 continue
@@ -75,7 +75,7 @@ def summarize(text):
 
     summary = ' '.join(summaries)
     if len(summaries) <= 5:
-        final_summary = call_gpt_api(f"Provide a key takeaway list for the following text in {lang}: {summary}")
+        final_summary = call_gpt_api(f"Provide a key takeaway list for the following text: {summary}")
         return final_summary
     else:
         return summarize(summary)
@@ -127,7 +127,8 @@ async def handle_summarize(update, context):
         elif model == "gpt-4":
             cost = round(total_tokens/1000*0.06, 2)
         translated_title=call_gpt_api(f"Translate '{title}' to {lang}")
-        await update.message.reply_text(f"{translated_title}\n\n{summary}")
+        translated_summary=call_gpt_api(f"Translate '{summary}' to {lang}")
+        await update.message.reply_text(f"{translated_title}\n\n{translated_summary}")
         print(f"Total tokens: {total_tokens}\nEstimated cost: ${cost}")
     except Exception as e:
         await update.message.reply_text(e)

@@ -18,5 +18,9 @@ This telegram bot provides various useful tools based on OpenAI. Its purpose is 
 
 
 ```sh
-docker run -d -e OPENAI_API_KEY=foo TELEGRAM_TOKEN=bar tonypai/ai-for-life
+docker run -d -e OPENAI_API_KEY=$YOUR_API_KEY -e TELEGRAM_TOKEN=$YOUR_TOKEN -e TS_LANG=$YOUR_LANGUAGE tonypai/ai-for-life
 ```
+
+## Demo
+
+![demo](demo.jpeg)
