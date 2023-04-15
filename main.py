@@ -94,6 +94,13 @@ def call_gpt_api(prompt):
     total_tokens += response.usage.total_tokens
     return message
 
+async def start(update, context):
+    try:
+        translated_text=call_gpt_api(f"Translate 'I will make your life easier, please click the menu on the bottom left to see what I can help.' to {lang}")
+        await update.message.reply_text(translated_text)
+    except Exception as e:
+        print(e)
+
 async def wait_for_summarize(update, context):
     translated_text=call_gpt_api(f"Translate 'Please provide an URL.' to {lang}")
     await update.message.reply_text(
@@ -124,7 +131,7 @@ async def handle_summarize(update, context):
         print(f"Total tokens: {total_tokens}\nEstimated cost: ${cost}")
     except Exception as e:
         await update.message.reply_text(e)
-    return SUMMARIZE
+    return ConversationHandler.END
 
 async def done(update, context):
     await update.message.reply_text('👍')
@@ -133,6 +140,7 @@ async def done(update, context):
 def main():
     try:
         application = ApplicationBuilder().token(telegram_token).build()
+        start_handler = CommandHandler('start', start)
         summarize_handler = ConversationHandler(
             entry_points=[CommandHandler('summarize', wait_for_summarize)],
             states={
@@ -140,6 +148,7 @@ def main():
             },
             fallbacks=[CommandHandler('done', done)],
         )
+        application.add_handler(start_handler)
         application.add_handler(summarize_handler)
         application.run_polling()
     except Exception as e:
