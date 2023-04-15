@@ -35,6 +35,8 @@ def scrape(url):
         for tag in soup(['script', 'style', 'noscript', 'nav', 'header', 'footer', '.sidebar', '.widget', '.ad']):
             tag.decompose()
         text = soup.get_text()
+    
+    text = text.strip()
 
     return article['title'], text
 
@@ -43,14 +45,29 @@ def summarize(text):
     Summarize the text using GPT API
     """
 
-    # Split the text into chunks
-    import re
-    text_chunks = re.findall(r'\b.{1,' + str(chunk_size) + r'}\b(?:\s+|$)', text)
-    
+    def split_text(text):
+        paragraphs = text.split('\n\n')  # split text into paragraphs
+        chunks = []
+        chunk = ''
+        for paragraph in paragraphs:
+            if len(chunk) + len(paragraph) < chunk_size:
+                chunk += paragraph + ' '
+            else:
+                chunks.append(chunk.strip())
+                chunk = paragraph + ' '
+        if chunk:
+            chunks.append(chunk.strip())
+        return chunks
+
+    text_chunks = split_text(text)
+    text_chunks = [chunk for chunk in text_chunks if chunk] # Remove empty chunks
+
+    print(text_chunks)
+
     # Call the GPT API in parallel to summarize the text chunks
     summaries = []
     with ThreadPoolExecutor() as executor:
-        futures = [executor.submit(call_gpt_api, chunk, False) for chunk in text_chunks]
+        futures = [executor.submit(call_gpt_api, f"Summarize the following text using half the number of words in {lang}: {chunk}") for chunk in text_chunks]
         for future in tqdm(futures, total=len(text_chunks), desc="Summarizing"):
             while not future.done():
                 continue
@@ -58,20 +75,16 @@ def summarize(text):
 
     summary = ' '.join(summaries)
     if len(summaries) <= 5:
-        final_summary = call_gpt_api(summary, True)
+        final_summary = call_gpt_api(f"Provide a key takeaway list for the following text in {lang}: {summary}")
         return final_summary
     else:
         return summarize(summary)
 
-def call_gpt_api(text, is_key_takeaway):
+def call_gpt_api(prompt):
     """
     Call GPT API to summarize the text or provide key takeaways
     """
     openai.api_key = apikey
-    if is_key_takeaway:
-        prompt = f"Provide a key takeaway list for the following text in {lang}: {text}"
-    else:
-        prompt = f"Summarize the following text using half the number of words in {lang}: {text}"
     response = openai.ChatCompletion.create(
         model=model,
         messages=[{"role": "user", "content": prompt}],
@@ -82,8 +95,9 @@ def call_gpt_api(text, is_key_takeaway):
     return message
 
 async def wait_for_summarize(update, context):
+    translated_text=call_gpt_api(f"Translate 'Please provide an URL.' to {lang}")
     await update.message.reply_text(
-        "Please provide an URL that I can read it for you."
+        translated_text
     )
     return SUMMARIZE
 
@@ -91,10 +105,12 @@ async def handle_summarize(update, context):
     try:
         user_input = update.message.text
         if not validators.url(user_input):
-            await update.message.reply_text("It's not a valid URL.")
+            translated_text=call_gpt_api(f"Translate 'It's not a valid URL.' to {lang}")
+            await update.message.reply_text(translated_text)
             return SUMMARIZE
 
-        await update.message.reply_text("Processing...")
+        translated_text=call_gpt_api(f"Translate 'Processing...' to {lang}")
+        await update.message.reply_text(translated_text)
         title, text = scrape(user_input)
         summary = summarize(text)
         if model == "gpt-3.5-turbo":
@@ -103,26 +119,28 @@ async def handle_summarize(update, context):
             cost = round(total_tokens/1000*0.12, 2)
         elif model == "gpt-4":
             cost = round(total_tokens/1000*0.06, 2)
-        await update.message.reply_text(f"{title}\n\n{summary}\n\nTotal tokens: {total_tokens}\nEstimated cost: ${cost}")
+        translated_title=call_gpt_api(f"Translate '{title}' to {lang}")
+        await update.message.reply_text(f"{translated_title}\n\n{summary}")
+        print(f"Total tokens: {total_tokens}\nEstimated cost: ${cost}")
     except Exception as e:
         await update.message.reply_text(e)
-    return ConversationHandler.END
+    return SUMMARIZE
 
 async def done(update, context):
-    await update.message.reply_text('Okay, bye.')
+    await update.message.reply_text('👍')
     return ConversationHandler.END
 
 def main():
     try:
         application = ApplicationBuilder().token(telegram_token).build()
-        conv_handler = ConversationHandler(
+        summarize_handler = ConversationHandler(
             entry_points=[CommandHandler('summarize', wait_for_summarize)],
             states={
                 SUMMARIZE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_summarize)]
             },
             fallbacks=[CommandHandler('done', done)],
         )
-        application.add_handler(conv_handler)
+        application.add_handler(summarize_handler)
         application.run_polling()
     except Exception as e:
         print(e)
