@@ -23,7 +23,11 @@ def scrape(url):
     """
     Scrape the content from the URL
     """
-    req = requests.get(url)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+    }
+    req = requests.get(url, headers=headers)
+
     article = simple_json_from_html_string(req.text, use_readability=True)
     soup = BeautifulSoup(article['plain_content'], 'html.parser')
     # Use CSS selectors to find the main content
@@ -75,7 +79,7 @@ def summarize(text):
 
     summary = ' '.join(summaries)
     if len(summaries) <= 5:
-        final_summary = call_gpt_api(f"Provide a key takeaway list for the following text: {summary}")
+        final_summary = call_gpt_api(f"Provide a key takeaway list(at least 10 list items) for the following text: {summary}")
         return final_summary
     else:
         return summarize(summary)
@@ -97,15 +101,13 @@ def call_gpt_api(prompt):
 async def start(update, context):
     try:
         translated_text=call_gpt_api(f"Translate 'I will make your life easier, please click the menu on the bottom left to see what I can help.' to {lang}")
-        await update.message.reply_text(translated_text)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=translated_text)
     except Exception as e:
         print(e)
 
 async def wait_for_summarize(update, context):
     translated_text=call_gpt_api(f"Translate 'Please provide an URL.' to {lang}")
-    await update.message.reply_text(
-        translated_text
-    )
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=translated_text)
     return SUMMARIZE
 
 async def handle_summarize(update, context):
@@ -113,11 +115,9 @@ async def handle_summarize(update, context):
         user_input = update.message.text
         if not validators.url(user_input):
             translated_text=call_gpt_api(f"Translate 'It's not a valid URL.' to {lang}")
-            await update.message.reply_text(translated_text)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=translated_text)
             return SUMMARIZE
-
-        translated_text=call_gpt_api(f"Translate 'Processing...' to {lang}")
-        await update.message.reply_text(translated_text)
+        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="TYPING")
         title, text = scrape(user_input)
         summary = summarize(text)
         if model == "gpt-3.5-turbo":
@@ -128,10 +128,10 @@ async def handle_summarize(update, context):
             cost = round(total_tokens/1000*0.06, 2)
         translated_title=call_gpt_api(f"Translate '{title}' to {lang}")
         translated_summary=call_gpt_api(f"Translate '{summary}' to {lang}")
-        await update.message.reply_text(f"{translated_title}\n\n{translated_summary}")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"{translated_title}\n\n{translated_summary}")
         print(f"Total tokens: {total_tokens}\nEstimated cost: ${cost}")
     except Exception as e:
-        await update.message.reply_text(e)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=str(e))
     return ConversationHandler.END
 
 async def done(update, context):
