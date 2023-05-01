@@ -1,25 +1,31 @@
 import openai
 import os
+import re
 import requests
-from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
 from readabilipy import simple_json_from_html_string
 from tqdm import tqdm
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import CommandHandler, ConversationHandler, MessageHandler, filters, ApplicationBuilder
-import validators
+from youtube_transcript_api import YouTubeTranscriptApi
 
 telegram_token = os.environ.get("TELEGRAM_TOKEN", "xxx")
 apikey = os.environ.get("OPENAI_API_KEY", "xxx")
 model = os.environ.get("OPENAI_MODEL", "gpt-3.5-turbo")
-lang = os.environ.get("TS_LANG", "English")
-total_tokens=0
+lang = os.environ.get("TS_LANG", "Traditional Chinese")
 
-SUMMARIZE = range(1)
+chunk_size= 1500
 
-chunk_size=500
+def split_user_input(text):
+    # Split the input text into paragraphs
+    paragraphs = text.split('\n')
 
-def scrape(url):
+    # Remove empty paragraphs and trim whitespace
+    paragraphs = [paragraph.strip() for paragraph in paragraphs if paragraph.strip()]
+
+    return paragraphs
+
+def scrape_text_from_url(url):
     """
     Scrape the content from the URL
     """
@@ -29,28 +35,14 @@ def scrape(url):
     req = requests.get(url, headers=headers)
 
     article = simple_json_from_html_string(req.text, use_readability=True)
-    soup = BeautifulSoup(article['plain_content'], 'html.parser')
-    # Use CSS selectors to find the main content
-    main_content = soup.select_one('article, main, [role="main"], .content, .post')
-    if main_content:
-        text = main_content.get_text()
-    else:
-        # Strip unwanted tags if main content not found
-        for tag in soup(['script', 'style', 'noscript', 'nav', 'header', 'footer', '.sidebar', '.widget', '.ad']):
-            tag.decompose()
-        text = soup.get_text()
-    
-    text = text.strip()
+    return article['title'], article['plain_text']
 
-    return article['title'], text
-
-def summarize(text):
+def summarize(text_array):
     """
     Summarize the text using GPT API
     """
 
-    def split_text(text):
-        paragraphs = text.split('\n\n')  # split text into paragraphs
+    def create_chunks(paragraphs):
         chunks = []
         chunk = ''
         for paragraph in paragraphs:
@@ -63,10 +55,8 @@ def summarize(text):
             chunks.append(chunk.strip())
         return chunks
 
-    text_chunks = split_text(text)
+    text_chunks = create_chunks(text_array)
     text_chunks = [chunk for chunk in text_chunks if chunk] # Remove empty chunks
-
-    print(text_chunks)
 
     # Call the GPT API in parallel to summarize the text chunks
     summaries = []
@@ -77,78 +67,93 @@ def summarize(text):
                 continue
             summaries.append(future.result())
 
-    summary = ' '.join(summaries)
     if len(summaries) <= 5:
-        final_summary = call_gpt_api(f"Provide a key takeaway list(at least 10 list items) for the following text: {summary}")
+        summary = ' '.join(summaries)
+        final_summary = call_gpt_api(f"Summarize the following text with 10 list items in markdown style in {lang}: {summary}")
         return final_summary
     else:
-        return summarize(summary)
+        return summarize(summaries)
+
+def extract_youtube_transcript(youtube_url):
+    video_id = youtube_url.split("watch?v=")[-1]
+    try:
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        transcript = transcript_list.find_transcript(['en', 'ja', 'ko', 'de', 'fr', 'ru', 'zh-Hant', 'zh-Hans'])
+        transcript_text = ' '.join([item['text'] for item in transcript.fetch()])
+        return transcript_text
+    except Exception as e:
+        print(f"Error: {e}")
+        return ""
+
+def retrieve_yt_transcript_from_url(youtube_url):
+    output = extract_youtube_transcript(youtube_url)
+    # Split output into an array based on the end of the sentence (like a dot),
+    # but each chunk should be smaller than chunk_size
+    output_sentences = output.split('.')
+    output_chunks = []
+    current_chunk = ""
+
+    for sentence in output_sentences:
+        if len(current_chunk) + len(sentence) + 1 <= chunk_size:
+            current_chunk += sentence + '.'
+        else:
+            output_chunks.append(current_chunk.strip())
+            current_chunk = sentence + '.'
+
+    if current_chunk:
+        output_chunks.append(current_chunk.strip())
+    return output_chunks
 
 def call_gpt_api(prompt):
     """
     Call GPT API to summarize the text or provide key takeaways
     """
-    openai.api_key = apikey
-    response = openai.ChatCompletion.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    message = response.choices[0].message.content.strip()
-    global total_tokens
-    total_tokens += response.usage.total_tokens
-    return message
+    try:
+        openai.api_key = apikey
+        response = openai.ChatCompletion.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        message = response.choices[0].message.content.strip()
+        return message
+    except Exception as e:
+        print(f"Error: {e}")
+        return ""
 
 async def start(update, context):
     try:
-        translated_text=call_gpt_api(f"Translate 'I will make your life easier, please click the menu on the bottom left to see what I can help.' to {lang}")
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=translated_text)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="我會為你輸入的文字、YouTube 影片連結和網址條列出十個重點。")
     except Exception as e:
-        print(e)
-
-async def wait_for_summarize(update, context):
-    translated_text=call_gpt_api(f"Translate 'Please provide an URL.' to {lang}")
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=translated_text)
-    return SUMMARIZE
+        print(f"Error: {e}")
 
 async def handle_summarize(update, context):
     try:
         user_input = update.message.text
-        if not validators.url(user_input):
-            translated_text=call_gpt_api(f"Translate 'It's not a valid URL.' to {lang}")
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=translated_text)
-            return SUMMARIZE
         await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="TYPING")
-        title, text = scrape(user_input)
-        summary = summarize(text)
-        if model == "gpt-3.5-turbo":
-            cost = round(total_tokens/1000*0.02, 2)
-        elif model == "gpt-4-32k":
-            cost = round(total_tokens/1000*0.12, 2)
-        elif model == "gpt-4":
-            cost = round(total_tokens/1000*0.06, 2)
-        translated_title=call_gpt_api(f"Translate '{title}' to {lang}")
-        translated_summary=call_gpt_api(f"Translate '{summary}' to {lang}")
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"{translated_title}\n\n{translated_summary}")
-        print(f"Total tokens: {total_tokens}\nEstimated cost: ${cost}")
+
+        youtube_pattern = re.compile(r"https?://(www\.)?(youtube\.com|youtu\.be)/")
+        url_pattern = re.compile(r"https?://")
+
+        if youtube_pattern.match(user_input):
+            text_array = retrieve_yt_transcript_from_url(user_input)
+        elif url_pattern.match(user_input):
+            title, text_array = scrape_text_from_url(user_input)
+            text_array = [obj['text'] for obj in text_array]
+        else:
+            text_array = split_user_input(user_input)
+        
+        print(text_array)
+
+        summary = summarize(text_array)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"{summary}")
     except Exception as e:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=str(e))
-    return ConversationHandler.END
-
-async def done(update, context):
-    await update.message.reply_text('👍')
-    return ConversationHandler.END
 
 def main():
     try:
         application = ApplicationBuilder().token(telegram_token).build()
         start_handler = CommandHandler('start', start)
-        summarize_handler = ConversationHandler(
-            entry_points=[CommandHandler('summarize', wait_for_summarize)],
-            states={
-                SUMMARIZE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_summarize)]
-            },
-            fallbacks=[CommandHandler('done', done)],
-        )
+        summarize_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, handle_summarize)
         application.add_handler(start_handler)
         application.add_handler(summarize_handler)
         application.run_polling()
