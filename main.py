@@ -36,7 +36,9 @@ def scrape_text_from_url(url):
     req = requests.get(url, headers=headers)
 
     article = simple_json_from_html_string(req.text, use_readability=True)
-    return article['title'], article['plain_text']
+    text_array = [obj['text'] for obj in article['plain_text']]
+    article_content = list(dict.fromkeys(text_array)) # Remove duplicated items from the array
+    return article['title'], article_content
 
 def summarize(text_array):
     """
@@ -144,7 +146,6 @@ async def handle_summarize(update, context):
             text_array = retrieve_yt_transcript_from_url(user_input)
         elif url_pattern.match(user_input):
             title, text_array = scrape_text_from_url(user_input)
-            text_array = [obj['text'] for obj in text_array]
         else:
             text_array = split_user_input(user_input)
         
