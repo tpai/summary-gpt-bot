@@ -1,3 +1,4 @@
+import asyncio
 import openai
 import os
 import re
@@ -55,24 +56,28 @@ def summarize(text_array):
             chunks.append(chunk.strip())
         return chunks
 
-    text_chunks = create_chunks(text_array)
-    text_chunks = [chunk for chunk in text_chunks if chunk] # Remove empty chunks
+    try:
+        text_chunks = create_chunks(text_array)
+        text_chunks = [chunk for chunk in text_chunks if chunk] # Remove empty chunks
 
-    # Call the GPT API in parallel to summarize the text chunks
-    summaries = []
-    with ThreadPoolExecutor() as executor:
-        futures = [executor.submit(call_gpt_api, f"Summarize the following text using half the number of words: {chunk}") for chunk in text_chunks]
-        for future in tqdm(futures, total=len(text_chunks), desc="Summarizing"):
-            while not future.done():
-                continue
-            summaries.append(future.result())
+        # Call the GPT API in parallel to summarize the text chunks
+        summaries = []
+        with ThreadPoolExecutor() as executor:
+            futures = [executor.submit(call_gpt_api, f"Summarize the following text using half the number of words: {chunk}") for chunk in text_chunks]
+            for future in tqdm(futures, total=len(text_chunks), desc="Summarizing"):
+                while not future.done():
+                    continue
+                summaries.append(future.result())
 
-    if len(summaries) <= 5:
-        summary = ' '.join(summaries)
-        final_summary = call_gpt_api(f"Summarize the following text with 10 list items in markdown style in {lang}: {summary}")
-        return final_summary
-    else:
-        return summarize(summaries)
+        if len(summaries) <= 5:
+            summary = ' '.join(summaries)
+            final_summary = call_gpt_api(f"Summarize the following text with 10 list items in markdown style in {lang}: {summary}")
+            return final_summary
+        else:
+            return summarize(summaries)
+    except Exception as e:
+        print(f"Error: {e}")
+        return "不明錯誤，請聯繫開發者。"
 
 def extract_youtube_transcript(youtube_url):
     video_id = youtube_url.split("watch?v=")[-1]
@@ -83,10 +88,12 @@ def extract_youtube_transcript(youtube_url):
         return transcript_text
     except Exception as e:
         print(f"Error: {e}")
-        return ""
+        return "no transcript"
 
 def retrieve_yt_transcript_from_url(youtube_url):
     output = extract_youtube_transcript(youtube_url)
+    if output == 'no transcript':
+        raise ValueError("錯誤：本 YouTube 影片未提供字幕。")
     # Split output into an array based on the end of the sentence (like a dot),
     # but each chunk should be smaller than chunk_size
     output_sentences = output.split(' ')
