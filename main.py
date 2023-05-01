@@ -78,7 +78,7 @@ def extract_youtube_transcript(youtube_url):
     video_id = youtube_url.split("watch?v=")[-1]
     try:
         transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        transcript = transcript_list.find_transcript(['en', 'ja', 'ko', 'de', 'fr', 'ru', 'zh-Hant', 'zh-Hans'])
+        transcript = transcript_list.find_transcript(['en', 'ja', 'ko', 'de', 'fr', 'ru', 'zh-TW', 'zh-CN'])
         transcript_text = ' '.join([item['text'] for item in transcript.fetch()])
         return transcript_text
     except Exception as e:
@@ -89,16 +89,16 @@ def retrieve_yt_transcript_from_url(youtube_url):
     output = extract_youtube_transcript(youtube_url)
     # Split output into an array based on the end of the sentence (like a dot),
     # but each chunk should be smaller than chunk_size
-    output_sentences = output.split('.')
+    output_sentences = output.split(' ')
     output_chunks = []
     current_chunk = ""
 
     for sentence in output_sentences:
         if len(current_chunk) + len(sentence) + 1 <= chunk_size:
-            current_chunk += sentence + '.'
+            current_chunk += sentence + ' '
         else:
             output_chunks.append(current_chunk.strip())
-            current_chunk = sentence + '.'
+            current_chunk = sentence + ' '
 
     if current_chunk:
         output_chunks.append(current_chunk.strip())
@@ -129,8 +129,7 @@ async def start(update, context):
 async def handle_summarize(update, context):
     try:
         user_input = update.message.text
-        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="TYPING")
-
+        
         youtube_pattern = re.compile(r"https?://(www\.)?(youtube\.com|youtu\.be)/")
         url_pattern = re.compile(r"https?://")
 
@@ -144,6 +143,7 @@ async def handle_summarize(update, context):
         
         print(text_array)
 
+        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="TYPING")
         summary = summarize(text_array)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=f"{summary}")
     except Exception as e:

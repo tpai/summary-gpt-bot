@@ -5,7 +5,7 @@ AI-powered text summarization Telegram bot that generates concise summaries of t
 ## Features
 
 - Generate summary for text
-- Generate summary for YT video
+- Generate summary for YT video(no support for YT short)
 - Generate summary for any URL
 
 ## Usage
