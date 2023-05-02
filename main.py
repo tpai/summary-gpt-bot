@@ -3,6 +3,8 @@ import openai
 import os
 import re
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from concurrent.futures import ThreadPoolExecutor
 from readabilipy import simple_json_from_html_string
 from tqdm import tqdm
@@ -33,7 +35,14 @@ def scrape_text_from_url(url):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
     }
-    req = requests.get(url, headers=headers)
+    requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':HIGH:!DH:!aNULL'
+    session = requests.Session()
+    retry = Retry(connect=3, backoff_factor=0.5)
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    req = session.get(url, headers=headers)
+    req.encoding = 'utf-8'
 
     article = simple_json_from_html_string(req.text, use_readability=True)
     text_array = [obj['text'] for obj in article['plain_text']]
