@@ -1,12 +1,12 @@
 # Summary GPT Bot
 
-AI-powered text summarization Telegram bot that generates concise summaries of text, YouTube videos, and URLs.
+An AI-powered text summarization Telegram bot that generates concise summaries of text, URLs, and YouTube videos.
 
 ## Features
 
-- Generate summary for text
-- Generate summary for YT video(no support for YT short)
-- Generate summary for any URL
+- Supports text
+- Supports URLs
+- Supports YouTube videos (no support for YouTube Shorts)
 
 ## Usage
 

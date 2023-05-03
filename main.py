@@ -35,14 +35,14 @@ def scrape_text_from_url(url):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
     }
-    requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':HIGH:!DH:!aNULL'
+    requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':HIGH:!DH:!aNULL' # Fix dh key too small
     session = requests.Session()
-    retry = Retry(connect=3, backoff_factor=0.5)
+    retry = Retry(connect=3, backoff_factor=0.5) # Fix max retries error
     adapter = HTTPAdapter(max_retries=retry)
     session.mount('http://', adapter)
     session.mount('https://', adapter)
     req = session.get(url, headers=headers)
-    req.encoding = 'utf-8'
+    req.encoding = 'utf-8' # Fix text encoding error
 
     article = simple_json_from_html_string(req.text, use_readability=True)
     text_array = [obj['text'] for obj in article['plain_text']]
@@ -82,7 +82,7 @@ def summarize(text_array):
 
         if len(summaries) <= 5:
             summary = ' '.join(summaries)
-            final_summary = call_gpt_api(f"Summarize the following text with 10 list items in markdown style in {lang}: {summary}")
+            final_summary = call_gpt_api(f"Summarize the following text as a markdown list in {lang}: {summary}")
             return final_summary
         else:
             return summarize(summaries)
@@ -104,7 +104,7 @@ def extract_youtube_transcript(youtube_url):
 def retrieve_yt_transcript_from_url(youtube_url):
     output = extract_youtube_transcript(youtube_url)
     if output == 'no transcript':
-        raise ValueError("錯誤：本 YouTube 影片未提供字幕。")
+        raise ValueError("錯誤：YouTube 影片未提供有效字幕。")
     # Split output into an array based on the end of the sentence (like a dot),
     # but each chunk should be smaller than chunk_size
     output_sentences = output.split(' ')
@@ -140,7 +140,7 @@ def call_gpt_api(prompt):
 
 async def start(update, context):
     try:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="我會為你輸入的文字、YouTube 影片連結和網址條列出十個重點。")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="我會為你輸入的文字、網址以及 YouTube 影片總結出重點。")
     except Exception as e:
         print(f"Error: {e}")
 
