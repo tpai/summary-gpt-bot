@@ -1,5 +1,6 @@
-readabilipy
 tqdm
 openai
 python-telegram-bot
 youtube_transcript_api
+newspaper3k
+readabilipy

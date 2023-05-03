@@ -3,6 +3,7 @@ import openai
 import os
 import re
 import requests
+from newspaper import Article
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from concurrent.futures import ThreadPoolExecutor
@@ -32,22 +33,30 @@ def scrape_text_from_url(url):
     """
     Scrape the content from the URL
     """
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
-    }
-    requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':HIGH:!DH:!aNULL' # Fix dh key too small
-    session = requests.Session()
-    retry = Retry(connect=3, backoff_factor=0.5) # Fix max retries error
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount('http://', adapter)
-    session.mount('https://', adapter)
-    req = session.get(url, headers=headers)
-    req.encoding = 'utf-8' # Fix text encoding error
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+        }
+        requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':HIGH:!DH:!aNULL' # Fix dh key too small
+        session = requests.Session()
+        retry = Retry(connect=3, backoff_factor=0.5) # Fix max retries error
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+        req = session.get(url, headers=headers)
+        req.encoding = 'utf-8' # Fix text encoding error
+        article = simple_json_from_html_string(req.text, use_readability=True)
+        text_array = [obj['text'] for obj in article['plain_text']]
+        article_content = list(dict.fromkeys(text_array)) # Remove duplicated items from the array
+    except Exception as e:
+        print(f"Error: {e}")
+        # fallback to newspaper library
+        article = Article(url)
+        article.download()
+        article.parse()
+        article_content = [text for text in article.text.split("\n\n") if text]
 
-    article = simple_json_from_html_string(req.text, use_readability=True)
-    text_array = [obj['text'] for obj in article['plain_text']]
-    article_content = list(dict.fromkeys(text_array)) # Remove duplicated items from the array
-    return article['title'], article_content
+    return article_content
 
 def summarize(text_array):
     """
@@ -156,7 +165,7 @@ async def handle_summarize(update, context):
         if youtube_pattern.match(user_input):
             text_array = retrieve_yt_transcript_from_url(user_input)
         elif url_pattern.match(user_input):
-            title, text_array = scrape_text_from_url(user_input)
+            text_array = scrape_text_from_url(user_input)
         else:
             text_array = split_user_input(user_input)
         
