@@ -3,6 +3,7 @@ import openai
 import os
 import re
 import requests
+from PyPDF2 import PdfReader
 from newspaper import Article
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -16,7 +17,7 @@ from youtube_transcript_api import YouTubeTranscriptApi
 telegram_token = os.environ.get("TELEGRAM_TOKEN", "xxx")
 apikey = os.environ.get("OPENAI_API_KEY", "xxx")
 model = os.environ.get("OPENAI_MODEL", "gpt-3.5-turbo")
-lang = os.environ.get("TS_LANG", "Traditional Chinese")
+lang = os.environ.get("TS_LANG", "Taiwanese Mandarin")
 
 chunk_size= 1500
 
@@ -174,18 +175,48 @@ async def handle_summarize(update, context):
             text_array = split_user_input(user_input)
         
         print(text_array)
+        
+        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="TYPING")
+        summary = summarize(text_array)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"{summary}")
+    except Exception as e:
+        print(f"Error: {e}")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=str(e))
+
+async def handle_file(update, context):
+    try:
+        download_path = "./files"
+        file_path = f"{download_path}/{update.message.document.file_unique_id}.pdf"
+        file = await context.bot.get_file(update.message.document)
+        await file.download_to_drive(file_path)
+
+        text_array = []
+        reader = PdfReader(file_path)
+        for page_num in range(len(reader.pages)):
+            page = reader.pages[page_num]
+            text = page.extract_text()                    
+            text_array.append(text)
+
+        print(file_path)
 
         await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="TYPING")
         summary = summarize(text_array)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=f"{summary}")
     except Exception as e:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=str(e))
+        print(f"Error: {e}")
+
+    try:
+        os.remove(file_path)
+    except Exception as e:
+        print(f"Error: {e}")
 
 def main():
     try:
         application = ApplicationBuilder().token(telegram_token).build()
         start_handler = CommandHandler('start', start)
         summarize_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, handle_summarize)
+        file_handler = MessageHandler(filters.Document.PDF, handle_file)
+        application.add_handler(file_handler)
         application.add_handler(start_handler)
         application.add_handler(summarize_handler)
         application.run_polling()
