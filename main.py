@@ -82,7 +82,9 @@ def summarize(text_array):
 
         if len(summaries) <= 5:
             summary = ' '.join(summaries)
-            final_summary = call_gpt_api(f"Summarize the following text as a markdown list in {lang}: {summary}")
+            with tqdm(total=1, desc="Final summarization") as progress_bar:
+                final_summary = call_gpt_api(f"Summarize the following text as a markdown list in {lang} without translating terminologies: {summary}")
+                progress_bar.update(1)
             return final_summary
         else:
             return summarize(summaries)
