@@ -83,7 +83,7 @@ def summarize(text_array):
         # Call the GPT API in parallel to summarize the text chunks
         summaries = []
         with ThreadPoolExecutor() as executor:
-            futures = [executor.submit(call_gpt_api, f"Summarize the following text using half the number of words: {chunk}") for chunk in text_chunks]
+            futures = [executor.submit(call_gpt_api, f"Summarize the following text using half the number of words:\n{chunk}") for chunk in text_chunks]
             for future in tqdm(futures, total=len(text_chunks), desc="Summarizing"):
                 while not future.done():
                     continue
@@ -92,7 +92,7 @@ def summarize(text_array):
         if len(summaries) <= 5:
             summary = ' '.join(summaries)
             with tqdm(total=1, desc="Final summarization") as progress_bar:
-                final_summary = call_gpt_api(f"Summarize the following text as a markdown list in {lang} without translating terminologies: {summary}")
+                final_summary = call_gpt_api(f"Please summarize the following text as a markdown list in {lang}, ensuring the terminology remains untranslated:\n{summary}")
                 progress_bar.update(1)
             return final_summary
         else:
