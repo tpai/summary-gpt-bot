@@ -102,8 +102,10 @@ def summarize(text_array):
         return "不明錯誤，請聯繫開發者。"
 
 def extract_youtube_transcript(youtube_url):
-    video_id = youtube_url.split("watch?v=")[-1]
     try:
+        video_id = youtube_url.split('v=')[1].split('&')[0]
+        if video_id is None:
+            return "no transcript"
         transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
         transcript = transcript_list.find_transcript(['en', 'ja', 'ko', 'de', 'fr', 'ru', 'zh-TW', 'zh-CN'])
         transcript_text = ' '.join([item['text'] for item in transcript.fetch()])
@@ -159,7 +161,9 @@ async def handle_summarize(update, context):
     try:
         user_input = update.message.text
         
-        youtube_pattern = re.compile(r"https?://(www\.)?(youtube\.com|youtu\.be)/")
+        print(user_input)
+        
+        youtube_pattern = re.compile(r"https?://(www\.|m\.)?(youtube\.com|youtu\.be)/")
         url_pattern = re.compile(r"https?://")
 
         if youtube_pattern.match(user_input):
