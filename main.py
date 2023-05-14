@@ -158,6 +158,12 @@ async def start(update, context):
     except Exception as e:
         print(f"Error: {e}")
 
+async def help(update, context):
+    try:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Please report bugs here. 👉 https://github.com/tpai/summary-gpt-bot")
+    except Exception as e:
+        print(f"Error: {e}")
+
 async def handle_summarize(update, context):
     try:
         user_input = update.message.text
@@ -215,10 +221,12 @@ def main():
     try:
         application = ApplicationBuilder().token(telegram_token).build()
         start_handler = CommandHandler('start', start)
+        help_handler = CommandHandler('help', help)
         summarize_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, handle_summarize)
         file_handler = MessageHandler(filters.Document.PDF, handle_file)
         application.add_handler(file_handler)
         application.add_handler(start_handler)
+        application.add_handler(help_handler)
         application.add_handler(summarize_handler)
         application.run_polling()
     except Exception as e:
