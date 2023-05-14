@@ -184,9 +184,10 @@ async def handle_summarize(update, context):
         await context.bot.send_message(chat_id=update.effective_chat.id, text=str(e))
 
 async def handle_file(update, context):
+    
+    file_path = f"{update.message.document.file_unique_id}.pdf"
+    
     try:
-        download_path = "./files"
-        file_path = f"{download_path}/{update.message.document.file_unique_id}.pdf"
         file = await context.bot.get_file(update.message.document)
         await file.download_to_drive(file_path)
 
