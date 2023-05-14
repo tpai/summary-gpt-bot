@@ -100,7 +100,7 @@ def summarize(text_array):
             return summarize(summaries)
     except Exception as e:
         print(f"Error: {e}")
-        return "不明錯誤，請聯繫開發者。"
+        return "Unknown error! Please contact the developer."
 
 def extract_youtube_transcript(youtube_url):
     try:
@@ -118,7 +118,7 @@ def extract_youtube_transcript(youtube_url):
 def retrieve_yt_transcript_from_url(youtube_url):
     output = extract_youtube_transcript(youtube_url)
     if output == 'no transcript':
-        raise ValueError("錯誤：YouTube 影片未提供有效字幕。")
+        raise ValueError("There's no valid transcript in this video.")
     # Split output into an array based on the end of the sentence (like a dot),
     # but each chunk should be smaller than chunk_size
     output_sentences = output.split(' ')
@@ -154,7 +154,7 @@ def call_gpt_api(prompt):
 
 async def start(update, context):
     try:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="我會為你輸入的文字、網址以及 YouTube 影片總結出重點。")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="I will summarize the text, URL, PDF and YouTube video for you.")
     except Exception as e:
         print(f"Error: {e}")
 
