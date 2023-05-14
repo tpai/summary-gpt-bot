@@ -1,6 +1,18 @@
-tqdm
-openai
-python-telegram-bot
-youtube_transcript_api
-newspaper3k
-readabilipy
+# progress tracking
+tqdm==4.65.0
+
+# natural language processing
+openai==0.27.2
+
+# regular text input
+newspaper3k==0.2.8
+readabilipy==0.2.0
+
+# PDFs
+PyPDF2==3.0.1
+
+# Telegram
+python-telegram-bot==20.2
+
+# YouTube
+youtube_transcript_api==0.6.0
