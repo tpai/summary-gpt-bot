@@ -38,7 +38,7 @@ def scrape_text_from_url(url):
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
         }
-        requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':HIGH:!DH:!aNULL' # Fix dh key too small
+        requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL' # Set default ciphers for urllib3
         session = requests.Session()
         retry = Retry(connect=3, backoff_factor=0.5) # Fix max retries error
         adapter = HTTPAdapter(max_retries=retry)
