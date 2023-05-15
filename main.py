@@ -182,7 +182,7 @@ async def handle_summarize(update, context):
         
         await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="TYPING")
         summary = summarize(text_array)
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"{summary}")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"{summary}", reply_to_message_id=update.message.message_id)
     except Exception as e:
         print(f"Error: {e}")
         await context.bot.send_message(chat_id=update.effective_chat.id, text=str(e))
