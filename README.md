@@ -2,6 +2,9 @@
 
 An AI-powered text summarization Telegram bot that generates concise summaries of text, URLs, PDFs and YouTube videos.
 
+- EN Bot: https://t.me/summarygptenbot
+- 繁中 Bot: https://t.me/summarygptzhtwbot
+
 ## Features
 
 - Supports text
