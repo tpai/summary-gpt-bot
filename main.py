@@ -86,8 +86,6 @@ def summarize(text_array):
         with ThreadPoolExecutor() as executor:
             futures = [executor.submit(call_gpt_api, f"Summarize the following text using half the number of words:\n{chunk}") for chunk in text_chunks]
             for future in tqdm(futures, total=len(text_chunks), desc="Summarizing"):
-                while not future.done():
-                    continue
                 summaries.append(future.result())
 
         if len(summaries) <= 5:
