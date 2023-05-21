@@ -4,9 +4,8 @@ tqdm==4.65.0
 # natural language processing
 openai==0.27.2
 
-# regular text input
-newspaper3k==0.2.8
-readabilipy==0.2.0
+# text extraction
+trafilatura==1.6.0
 
 # PDFs
 PyPDF2==3.0.1

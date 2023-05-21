@@ -1,17 +1,11 @@
-import asyncio
 import openai
 import os
 import re
-import requests
+import trafilatura
 from PyPDF2 import PdfReader
-from newspaper import Article
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 from concurrent.futures import ThreadPoolExecutor
-from readabilipy import simple_json_from_html_string
 from tqdm import tqdm
-from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
-from telegram.ext import CommandHandler, ConversationHandler, MessageHandler, filters, ApplicationBuilder
+from telegram.ext import CommandHandler, MessageHandler, filters, ApplicationBuilder
 from youtube_transcript_api import YouTubeTranscriptApi
 
 telegram_token = os.environ.get("TELEGRAM_TOKEN", "xxx")
@@ -35,27 +29,14 @@ def scrape_text_from_url(url):
     Scrape the content from the URL
     """
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
-        }
-        requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL' # Set default ciphers for urllib3
-        session = requests.Session()
-        retry = Retry(connect=3, backoff_factor=0.5) # Fix max retries error
-        adapter = HTTPAdapter(max_retries=retry)
-        session.mount('http://', adapter)
-        session.mount('https://', adapter)
-        req = session.get(url, headers=headers)
-        req.encoding = 'utf-8' # Fix text encoding error
-        article = simple_json_from_html_string(req.text, use_readability=True)
-        text_array = [obj['text'] for obj in article['plain_text']]
-        article_content = list(dict.fromkeys(text_array)) # Remove duplicated items from the array
+        downloaded = trafilatura.fetch_url(url)
+        text = trafilatura.extract(downloaded, include_formatting=True)
+        if text is None:
+            return []
+        text_chunks = text.split("\n")
+        article_content = [text for text in text_chunks if text]
     except Exception as e:
         print(f"Error: {e}")
-        # fallback to newspaper library
-        article = Article(url)
-        article.download()
-        article.parse()
-        article_content = [text for text in article.text.split("\n\n") if text]
 
     return article_content
 
