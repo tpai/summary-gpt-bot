@@ -133,7 +133,7 @@ def call_gpt_api(prompt):
 
 async def start(update, context):
     try:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="I will summarize the text, URL, PDF and YouTube video for you.")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="I can summarize the text, URL, PDF and YouTube video for you.")
     except Exception as e:
         print(f"Error: {e}")
 
@@ -144,6 +144,10 @@ async def help(update, context):
         print(f"Error: {e}")
 
 async def handle_summarize(update, context):
+
+    chat_id = update.effective_chat.id
+    message_id = update.message.message_id
+
     try:
         user_input = update.message.text
         
@@ -160,16 +164,21 @@ async def handle_summarize(update, context):
             text_array = split_user_input(user_input)
         
         print(text_array)
+
+        if not text_array:
+            raise ValueError("No content found to summarize.")
         
-        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="TYPING")
+        await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
         summary = summarize(text_array)
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"{summary}", reply_to_message_id=update.message.message_id)
+        await context.bot.send_message(chat_id=chat_id, text=f"{summary}", reply_to_message_id=message_id)
     except Exception as e:
         print(f"Error: {e}")
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=str(e))
+        await context.bot.send_message(chat_id=chat_id, text=str(e))
 
 async def handle_file(update, context):
     
+    chat_id = update.effective_chat.id
+    message_id = update.message.message_id
     file_path = f"{update.message.document.file_unique_id}.pdf"
     
     try:
@@ -185,9 +194,9 @@ async def handle_file(update, context):
 
         print(file_path)
 
-        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="TYPING")
+        await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
         summary = summarize(text_array)
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"{summary}")
+        await context.bot.send_message(chat_id=chat_id, text=f"{summary}", reply_to_message_id=message_id)
     except Exception as e:
         print(f"Error: {e}")
 
