@@ -87,7 +87,7 @@ def extract_youtube_transcript(youtube_url):
         if video_id is None:
             return "no transcript"
         transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        transcript = transcript_list.find_transcript(['en', 'ja', 'ko', 'de', 'fr', 'ru', 'zh-TW', 'zh-CN'])
+        transcript = transcript_list.find_transcript(['en', 'ja', 'ko', 'de', 'fr', 'ru', 'zh-TW', 'zh-CN', 'zh-Hant', 'zh-Hans'])
         transcript_text = ' '.join([item['text'] for item in transcript.fetch()])
         return transcript_text
     except Exception as e:
