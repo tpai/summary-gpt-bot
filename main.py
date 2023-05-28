@@ -83,7 +83,8 @@ def summarize(text_array):
 
 def extract_youtube_transcript(youtube_url):
     try:
-        video_id = youtube_url.split('v=')[1].split('&')[0]
+        video_id_match = re.search(r"(?<=v=)[^&]+|(?<=youtu.be/)[^?|\n]+", youtube_url)
+        video_id = video_id_match.group(0) if video_id_match else None
         if video_id is None:
             return "no transcript"
         transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
