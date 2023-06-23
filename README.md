@@ -14,18 +14,16 @@ An AI-powered text summarization Telegram bot that generates concise summaries o
 
 ## Usage
 
-| Environment Variable | Description |
-|----------------------|-------------|
-| OPENAI_API_KEY       | API key for OpenAI GPT API (required) |
-| OPENAI_MODEL         | Model to use for text summarization (default: gpt-3.5-turbo) |
-| TELEGRAM_TOKEN       | Token for Telegram API (required) |
-| TS_LANG              | Language of the text to be summarized (default: Taiwanese Mandarin) |
-
+Launch your own GPT-4 summary bot with 32k token context in one line command 🚀
 
 ```sh
-# install libraries
-pip install -r requirements.txt
-
-# start telegram bot
-docker run -d -e OPENAI_API_KEY=$YOUR_API_KEY -e TELEGRAM_TOKEN=$YOUR_TOKEN -e TS_LANG=$YOUR_LANGUAGE tonypai/summary-gpt-bot
+docker run -d -e TELEGRAM_TOKEN=$YOUR_TG_TOKEN -e OPENAI_API_KEY=$YOUR_API_KEY -e OPENAI_MODEL=gpt-4-32k -e CHUNK_SIZE=20000 -e TS_LANG=$YOUR_LANGUAGE tonypai/summary-gpt-bot:latest
 ```
+
+| Environment Variable | Description |
+|----------------------|-------------|
+| TELEGRAM_TOKEN       | Token for Telegram API (required) |
+| OPENAI_API_KEY       | API key for OpenAI GPT API (required) |
+| OPENAI_MODEL         | Model to use for text summarization (default: gpt-3.5-turbo-16k) |
+| CHUNK_SIZE           | The maximum token of a chunk when receiving a large input (default: 10000) |
+| TS_LANG              | Language of the text to be summarized (default: Taiwanese Mandarin) |
