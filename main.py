@@ -64,14 +64,14 @@ def summarize(text_array):
         # Call the GPT API in parallel to summarize the text chunks
         summaries = []
         with ThreadPoolExecutor() as executor:
-            futures = [executor.submit(call_gpt_api, f"Create a summary capturing the main points and key details of the following text:\n{chunk}") for chunk in text_chunks]
+            futures = [executor.submit(call_gpt_api, f"Create a summary for the following text:\n{chunk}") for chunk in text_chunks]
             for future in tqdm(futures, total=len(text_chunks), desc="Summarizing"):
                 summaries.append(future.result())
 
         if len(summaries) <= 5:
             summary = ' '.join(summaries)
             with tqdm(total=1, desc="Final summarization") as progress_bar:
-                final_summary = call_gpt_api(f"Please summarize the following text as a bulleted list in {lang}, ensuring the terminology remains untranslated:\n{summary}")
+                final_summary = call_gpt_api(f"Create a bulleted list using {lang} to show the key points of the following text:\n{summary}")
                 progress_bar.update(1)
             return final_summary
         else:
@@ -123,7 +123,11 @@ def call_gpt_api(prompt):
         openai.api_key = apikey
         response = openai.ChatCompletion.create(
             model=model,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": "You are an expert in creating summaries that capture the main points and key details."},
+                {"role": "system", "content": "You will not translate any technical terms."},
+                {"role": "user", "content": prompt}
+            ],
         )
         message = response.choices[0].message.content.strip()
         return message
