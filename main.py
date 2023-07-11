@@ -125,7 +125,7 @@ def call_gpt_api(prompt):
             model=model,
             messages=[
                 {"role": "system", "content": "You are an expert in creating summaries that capture the main points and key details."},
-                {"role": "system", "content": "You will not translate any technical terms."},
+                {"role": "system", "content": f"You will show the bulleted list content in {lang} without translate any technical terms."},
                 {"role": "user", "content": prompt}
             ],
         )
