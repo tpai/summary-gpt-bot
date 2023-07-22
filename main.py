@@ -143,7 +143,7 @@ async def start(update, context):
 
 async def help(update, context):
     try:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="Report bugs here 👉 https://github.com/tpai/summary-gpt-bot")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Report bugs here 👉 https://github.com/tpai/summary-gpt-bot/issues", disable_web_page_preview=True)
     except Exception as e:
         print(f"Error: {e}")
 
