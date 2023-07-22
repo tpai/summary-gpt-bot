@@ -48,7 +48,7 @@ def summarize(text_array):
         chunks = []
         chunk = ''
         for paragraph in paragraphs:
-            if len(chunk) + len(paragraph) < chunk_size:
+            if len(chunk) + len(paragraph) < int(chunk_size):
                 chunk += paragraph + ' '
             else:
                 chunks.append(chunk.strip())
