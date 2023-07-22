@@ -147,6 +147,19 @@ async def help(update, context):
     except Exception as e:
         print(f"Error: {e}")
 
+def process_user_input(user_input):
+    youtube_pattern = re.compile(r"https?://(www\.|m\.)?(youtube\.com|youtu\.be)/")
+    url_pattern = re.compile(r"https?://")
+
+    if youtube_pattern.match(user_input):
+        text_array = retrieve_yt_transcript_from_url(user_input)
+    elif url_pattern.match(user_input):
+        text_array = scrape_text_from_url(user_input)
+    else:
+        text_array = split_user_input(user_input)
+    
+    return text_array
+
 async def handle_summarize(update, context):
 
     chat_id = update.effective_chat.id
@@ -157,15 +170,7 @@ async def handle_summarize(update, context):
         
         print(user_input)
         
-        youtube_pattern = re.compile(r"https?://(www\.|m\.)?(youtube\.com|youtu\.be)/")
-        url_pattern = re.compile(r"https?://")
-
-        if youtube_pattern.match(user_input):
-            text_array = retrieve_yt_transcript_from_url(user_input)
-        elif url_pattern.match(user_input):
-            text_array = scrape_text_from_url(user_input)
-        else:
-            text_array = split_user_input(user_input)
+        text_array = process_user_input(user_input)
         
         print(text_array)
 
