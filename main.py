@@ -5,7 +5,8 @@ import trafilatura
 from PyPDF2 import PdfReader
 from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
-from telegram.ext import CommandHandler, MessageHandler, filters, ApplicationBuilder
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, filters, ApplicationBuilder
 from youtube_transcript_api import YouTubeTranscriptApi
 
 telegram_token = os.environ.get("TELEGRAM_TOKEN", "xxx")
@@ -63,15 +64,19 @@ def summarize(text_array):
 
         # Call the GPT API in parallel to summarize the text chunks
         summaries = []
+        system_messages = [
+            {"role": "system", "content": "You are an expert in creating summaries that capture the main points and key details."},
+            {"role": "system", "content": f"You will show the bulleted list content in {lang} without translate any technical terms."}
+        ]
         with ThreadPoolExecutor() as executor:
-            futures = [executor.submit(call_gpt_api, f"Create a summary for the following text:\n{chunk}") for chunk in text_chunks]
+            futures = [executor.submit(call_gpt_api, f"Summary keypoints for the following text:\n{chunk}", system_messages) for chunk in text_chunks]
             for future in tqdm(futures, total=len(text_chunks), desc="Summarizing"):
                 summaries.append(future.result())
 
         if len(summaries) <= 5:
             summary = ' '.join(summaries)
             with tqdm(total=1, desc="Final summarization") as progress_bar:
-                final_summary = call_gpt_api(f"Create a bulleted list using {lang} to show the key points of the following text:\n{summary}")
+                final_summary = call_gpt_api(f"Create a bulleted list using {lang} to show the key points of the following text:\n{summary}", system_messages)
                 progress_bar.update(1)
             return final_summary
         else:
@@ -115,7 +120,7 @@ def retrieve_yt_transcript_from_url(youtube_url):
         output_chunks.append(current_chunk.strip())
     return output_chunks
 
-def call_gpt_api(prompt):
+def call_gpt_api(prompt, additional_messages=[]):
     """
     Call GPT API to summarize the text or provide key takeaways
     """
@@ -123,11 +128,10 @@ def call_gpt_api(prompt):
         openai.api_key = apikey
         response = openai.ChatCompletion.create(
             model=model,
-            messages=[
-                {"role": "system", "content": "You are an expert in creating summaries that capture the main points and key details."},
-                {"role": "system", "content": f"You will show the bulleted list content in {lang} without translate any technical terms."},
+            messages=additional_messages+[
                 {"role": "user", "content": prompt}
             ],
+
         )
         message = response.choices[0].message.content.strip()
         return message
@@ -179,7 +183,7 @@ async def handle_summarize(update, context):
         
         await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
         summary = summarize(text_array)
-        await context.bot.send_message(chat_id=chat_id, text=f"{summary}", reply_to_message_id=message_id)
+        await context.bot.send_message(chat_id=chat_id, text=f"{summary}", reply_to_message_id=message_id, reply_markup=get_inline_keyboard_buttons())
     except Exception as e:
         print(f"Error: {e}")
         await context.bot.send_message(chat_id=chat_id, text=str(e))
@@ -205,7 +209,7 @@ async def handle_file(update, context):
 
         await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
         summary = summarize(text_array)
-        await context.bot.send_message(chat_id=chat_id, text=f"{summary}", reply_to_message_id=message_id)
+        await context.bot.send_message(chat_id=chat_id, text=f"{summary}", reply_to_message_id=message_id, reply_markup=get_inline_keyboard_buttons())
     except Exception as e:
         print(f"Error: {e}")
 
@@ -214,6 +218,23 @@ async def handle_file(update, context):
     except Exception as e:
         print(f"Error: {e}")
 
+def get_inline_keyboard_buttons():
+    keyboard = [[InlineKeyboardButton("Why should I care?", callback_data="why_should_i_care")]]
+    return InlineKeyboardMarkup(keyboard)
+
+async def handle_button_click(update, context):
+    chat_id = update.effective_chat.id
+
+    if update.callback_query.data == "why_should_i_care":
+        await context.bot.edit_message_text(chat_id=chat_id, message_id=update.callback_query.message.message_id, text=update.callback_query.message.text)
+        original_message_text = update.callback_query.message.text
+        
+        await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
+        review_text = call_gpt_api(f"{original_message_text}\nBased on the content above, tell me why should I care.", [
+            {"role": "system", "content": f"You will show the result in {lang}."}
+        ])
+        await context.bot.send_message(chat_id=chat_id, text=review_text, reply_to_message_id=update.callback_query.message.message_id)
+
 def main():
     try:
         application = ApplicationBuilder().token(telegram_token).build()
@@ -221,10 +242,12 @@ def main():
         help_handler = CommandHandler('help', help)
         summarize_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, handle_summarize)
         file_handler = MessageHandler(filters.Document.PDF, handle_file)
+        button_click_handler = CallbackQueryHandler(handle_button_click)
         application.add_handler(file_handler)
         application.add_handler(start_handler)
         application.add_handler(help_handler)
         application.add_handler(summarize_handler)
+        application.add_handler(button_click_handler)
         application.run_polling()
     except Exception as e:
         print(e)
