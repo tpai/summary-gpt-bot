@@ -2,8 +2,12 @@
 
 An AI-powered text summarization Telegram bot that generates concise summaries of text, URLs, PDFs and YouTube videos.
 
-- EN Bot: https://t.me/summarygptenbot
-- 繁中 Bot: https://t.me/summarygptzhtwbot
+**⚠️ Free credits will be expired at 1 Oct 2023 ⚠️**
+
+- EN Bot: ~~https://t.me/summarygptenbot~~ (retired)
+- 繁中 Bot: ~~https://t.me/summarygptzhtwbot~~ (retired)
+
+> Thanks for using, feel free to self-host your own summary bot.
 
 ## Features
 
