@@ -1,17 +1,17 @@
 # progress tracking
-tqdm==4.65.0
+tqdm==4.66.1
 
-# natural language processing
-openai==0.27.2
+# natural language processing, newer versions wont work
+openai==0.28
 
 # text extraction
-trafilatura==1.6.0
+trafilatura==1.7.0
 
 # PDFs
 PyPDF2==3.0.1
 
 # Telegram
-python-telegram-bot==20.2
+python-telegram-bot==20.8
 
 # YouTube
-youtube_transcript_api==0.6.0
+youtube_transcript_api==0.6.2

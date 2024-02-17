@@ -13,7 +13,7 @@ telegram_token = os.environ.get("TELEGRAM_TOKEN", "xxx")
 apikey = os.environ.get("OPENAI_API_KEY", "xxx")
 model = os.environ.get("OPENAI_MODEL", "gpt-3.5-turbo-16k")
 lang = os.environ.get("TS_LANG", "Taiwanese Mandarin")
-chunk_size= os.environ.get("CHUNK_SIZE", 10000)
+chunk_size= int(os.environ.get("CHUNK_SIZE", 10000))
 
 def split_user_input(text):
     # Split the input text into paragraphs
@@ -49,7 +49,7 @@ def summarize(text_array):
         chunks = []
         chunk = ''
         for paragraph in paragraphs:
-            if len(chunk) + len(paragraph) < int(chunk_size):
+            if len(chunk) + len(paragraph) < chunk_size:
                 chunk += paragraph + ' '
             else:
                 chunks.append(chunk.strip())
