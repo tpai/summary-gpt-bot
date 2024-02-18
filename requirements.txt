@@ -1,3 +1,6 @@
+# async handler
+asyncio==3.4.3
+
 # progress tracking
 tqdm==4.66.1
 
@@ -6,6 +9,9 @@ openai==0.28
 
 # text extraction
 trafilatura==1.7.0
+
+# duckduckgo
+duckduckgo_search==4.4.3
 
 # PDFs
 PyPDF2==3.0.1

@@ -1,7 +1,9 @@
+import asyncio
 import openai
 import os
 import re
 import trafilatura
+from duckduckgo_search import AsyncDDGS
 from PyPDF2 import PdfReader
 from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
@@ -39,6 +41,12 @@ def scrape_text_from_url(url):
         print(f"Error: {e}")
 
     return article_content
+
+
+async def search_results(keywords):
+    async with AsyncDDGS() as ddgs:
+        results = [r async for r in ddgs.text(keywords, region='wt-wt', safesearch='off', max_results=3)]
+        return results
 
 def summarize(text_array):
     """
@@ -220,21 +228,45 @@ async def handle_file(update, context):
         print(f"Error: {e}")
 
 def get_inline_keyboard_buttons():
-    keyboard = [[InlineKeyboardButton("Why should I care?", callback_data="why_should_i_care")]]
+    keyboard = [
+        [InlineKeyboardButton("Explore Similar", callback_data="explore_similar")],
+        [InlineKeyboardButton("Why It Matters", callback_data="why_it_matters")],
+    ]
     return InlineKeyboardMarkup(keyboard)
 
 async def handle_button_click(update, context):
     chat_id = update.effective_chat.id
 
-    if update.callback_query.data == "why_should_i_care":
-        await context.bot.edit_message_text(chat_id=chat_id, message_id=update.callback_query.message.message_id, text=update.callback_query.message.text)
+    if update.callback_query.data == "explore_similar":
+        # await context.bot.edit_message_text(chat_id=chat_id, message_id=update.callback_query.message.message_id, text=update.callback_query.message.text)
         original_message_text = update.callback_query.message.text
 
         await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
-        review_text = call_gpt_api(f"{original_message_text}\nBased on the content above, tell me why should I care.", [
+        keywords = call_gpt_api(f"{original_message_text}\nBased on the content above, give me the top 5 important keywords with commas.", [
+            {"role": "system", "content": f"You will print keywords only."}
+        ])
+
+
+        tasks = []
+        tasks.append(search_results(keywords))
+        results = await asyncio.gather(*tasks)
+        print(results)
+
+        links = ''
+        for r in results[0]:
+            links += f"{r['title']}\n{r['href']}\n"
+
+        await context.bot.send_message(chat_id=chat_id, text=links, reply_to_message_id=update.callback_query.message.message_id, disable_web_page_preview=True)
+
+    if update.callback_query.data == "why_it_matters":
+        # await context.bot.edit_message_text(chat_id=chat_id, message_id=update.callback_query.message.message_id, text=update.callback_query.message.text)
+        original_message_text = update.callback_query.message.text
+
+        await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
+        result = call_gpt_api(f"{original_message_text}\nBased on the content above, tell me why it matters as an expert.", [
             {"role": "system", "content": f"You will show the result in {lang}."}
         ])
-        await context.bot.send_message(chat_id=chat_id, text=review_text, reply_to_message_id=update.callback_query.message.message_id)
+        await context.bot.send_message(chat_id=chat_id, text=result, reply_to_message_id=update.callback_query.message.message_id)
 
 def main():
     try:
