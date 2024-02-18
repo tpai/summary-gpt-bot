@@ -284,8 +284,5 @@ def main():
     except Exception as e:
         print(e)
 
-if 'OPENAI_API_KEY' not in os.environ:
-    print('⚠️ OPENAI_API_KEY environment variable is not defined')
-else:
-    if __name__ == '__main__':
-        main()
+if __name__ == '__main__':
+    main()
