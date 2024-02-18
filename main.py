@@ -1,8 +1,8 @@
 import asyncio
-import openai
 import os
 import re
 import trafilatura
+from litellm import completion
 from duckduckgo_search import AsyncDDGS
 from PyPDF2 import PdfReader
 from concurrent.futures import ThreadPoolExecutor
@@ -12,8 +12,7 @@ from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, f
 from youtube_transcript_api import YouTubeTranscriptApi
 
 telegram_token = os.environ.get("TELEGRAM_TOKEN", "xxx")
-apikey = os.environ.get("OPENAI_API_KEY", "xxx")
-model = os.environ.get("OPENAI_MODEL", "gpt-3.5-turbo-16k")
+model = os.environ.get("LLM_MODEL", "gpt-3.5-turbo-16k")
 lang = os.environ.get("TS_LANG", "Taiwanese Mandarin")
 chunk_size= int(os.environ.get("CHUNK_SIZE", 10000))
 
@@ -134,8 +133,8 @@ def call_gpt_api(prompt, additional_messages=[]):
     Call GPT API
     """
     try:
-        openai.api_key = apikey
-        response = openai.ChatCompletion.create(
+        response = completion(
+        # response = openai.ChatCompletion.create(
             model=model,
             messages=additional_messages+[
                 {"role": "user", "content": prompt}

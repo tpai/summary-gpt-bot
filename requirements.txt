@@ -4,8 +4,8 @@ asyncio==3.4.3
 # progress tracking
 tqdm==4.66.1
 
-# natural language processing, newer versions wont work
-openai==0.28
+# llm adapter
+litellm==1.21.7
 
 # text extraction
 trafilatura==1.7.0

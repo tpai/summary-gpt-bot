@@ -2,11 +2,6 @@
 
 An AI-powered text summarization Telegram bot that generates concise summaries of text, URLs, PDFs and YouTube videos.
 
-**⚠️Free credits has expired at 1 Oct 2023⚠️**
-
-- EN Bot: ~~https://t.me/summarygptenbot~~ (retired)
-- 繁中 Bot: ~~https://t.me/summarygptzhtwbot~~ (retired)
-
 > Thanks for using, feel free to self-host your own summary bot.
 
 ## Features
@@ -18,16 +13,44 @@ An AI-powered text summarization Telegram bot that generates concise summaries o
 
 ## Usage
 
-Launch your own GPT-4 summary bot with 32k token context in one line command 🚀
+Launch a GPT-4 summary bot using OpenAI.
 
 ```sh
-docker run -d -e TELEGRAM_TOKEN=$YOUR_TG_TOKEN -e OPENAI_API_KEY=$YOUR_API_KEY -e OPENAI_MODEL=gpt-4-32k -e CHUNK_SIZE=20000 -e TS_LANG=$YOUR_LANGUAGE tonypai/summary-gpt-bot:latest
+docker run -d \
+    -e LLM_MODEL=gpt-4 \
+    -e OPENAI_API_KEY=$OPENAI_API_KEY \
+    -e TELEGRAM_TOKEN=$YOUR_TG_TOKEN \
+    -e TS_LANG=$YOUR_LANGUAGE \
+    tonypai/summary-gpt-bot:latest
 ```
+
+Launch a summary bot using Azure OpenAI.
+
+```sh
+docker run -d \
+    -e AZURE_API_BASE=https://<your_azure_resource_name>.openai.azure.com \
+    -e AZURE_API_KEY=$AZURE_API_KEY \
+    -e AZURE_API_VERSION=2024-02-15-preview \
+    -e LLM_MODEL=azure/<your_deployment_name> \
+    -e TELEGRAM_TOKEN=$YOUR_TG_TOKEN \
+    -e TS_LANG=$YOUR_LANGUAGE \
+    tonypai/summary-gpt-bot:latest
+```
+
+LLM Variables
 
 | Environment Variable | Description |
 |----------------------|-------------|
-| TELEGRAM_TOKEN       | Token for Telegram API (required) |
-| OPENAI_API_KEY       | API key for OpenAI GPT API (required) |
-| OPENAI_MODEL         | Model to use for text summarization (default: gpt-3.5-turbo-16k) |
+| AZURE_API_BASE       | API URL base for AZURE OpenAI API |
+| AZURE_API_KEY        | API key for AZURE OpenAI API |
+| AZURE_API_VERSION    | API version for AZURE OpenAI API |
+| OPENAI_API_KEY       | API key for OpenAI API |
+
+Bot Variables
+
+| Environment Variable | Description |
+|----------------------|-------------|
 | CHUNK_SIZE           | The maximum token of a chunk when receiving a large input (default: 10000) |
+| LLM_MODEL            | LLM Model to use for text summarization (default: gpt-3.5-turbo-16k) |
+| TELEGRAM_TOKEN       | Token for Telegram API (required) |
 | TS_LANG              | Language of the text to be summarized (default: Taiwanese Mandarin) |
