@@ -122,7 +122,7 @@ def retrieve_yt_transcript_from_url(youtube_url):
 
 def call_gpt_api(prompt, additional_messages=[]):
     """
-    Call GPT API to summarize the text or provide key takeaways
+    Call GPT API
     """
     try:
         openai.api_key = apikey
@@ -161,7 +161,7 @@ def process_user_input(user_input):
         text_array = scrape_text_from_url(user_input)
     else:
         text_array = split_user_input(user_input)
-    
+
     return text_array
 
 async def handle_summarize(update, context):
@@ -171,16 +171,16 @@ async def handle_summarize(update, context):
 
     try:
         user_input = update.message.text
-        
+
         print(user_input)
-        
+
         text_array = process_user_input(user_input)
-        
+
         print(text_array)
 
         if not text_array:
             raise ValueError("No content found to summarize.")
-        
+
         await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
         summary = summarize(text_array)
         await context.bot.send_message(chat_id=chat_id, text=f"{summary}", reply_to_message_id=message_id, reply_markup=get_inline_keyboard_buttons())
@@ -189,11 +189,11 @@ async def handle_summarize(update, context):
         await context.bot.send_message(chat_id=chat_id, text=str(e))
 
 async def handle_file(update, context):
-    
+
     chat_id = update.effective_chat.id
     message_id = update.message.message_id
     file_path = f"{update.message.document.file_unique_id}.pdf"
-    
+
     try:
         file = await context.bot.get_file(update.message.document)
         await file.download_to_drive(file_path)
@@ -202,7 +202,7 @@ async def handle_file(update, context):
         reader = PdfReader(file_path)
         for page_num in range(len(reader.pages)):
             page = reader.pages[page_num]
-            text = page.extract_text()                    
+            text = page.extract_text()
             text_array.append(text)
 
         print(file_path)
@@ -228,7 +228,7 @@ async def handle_button_click(update, context):
     if update.callback_query.data == "why_should_i_care":
         await context.bot.edit_message_text(chat_id=chat_id, message_id=update.callback_query.message.message_id, text=update.callback_query.message.text)
         original_message_text = update.callback_query.message.text
-        
+
         await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
         review_text = call_gpt_api(f"{original_message_text}\nBased on the content above, tell me why should I care.", [
             {"role": "system", "content": f"You will show the result in {lang}."}
