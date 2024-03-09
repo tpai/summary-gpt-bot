@@ -36,11 +36,9 @@ def scrape_text_from_url(url):
             return []
         text_chunks = text.split("\n")
         article_content = [text for text in text_chunks if text]
+        return article_content
     except Exception as e:
         print(f"Error: {e}")
-
-    return article_content
-
 
 async def search_results(keywords):
     async with AsyncDDGS() as ddgs:
@@ -147,17 +145,95 @@ def call_gpt_api(prompt, additional_messages=[]):
         print(f"Error: {e}")
         return ""
 
-async def handle_start(update, context):
-    try:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="I can summarize text, URLs, PDFs and YouTube video for you.")
-    except Exception as e:
-        print(f"Error: {e}")
+def handle_start(update, context):
+    return handle('start', update, context)
 
-async def handle_help(update, context):
+def handle_help(update, context):
+    return handle('help', update, context)
+
+def handle_summarize(update, context):
+    return handle('summarize', update, context)
+
+def handle_file(update, context):
+    return handle('file', update, context)
+
+def handle_button_click(update, context):
+    return handle('button_click', update, context)
+
+async def handle(command, update, context):
+    chat_id = update.effective_chat.id
+    print("chat_id=", chat_id)
+
     try:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="Report bugs here 👉 https://github.com/tpai/summary-gpt-bot/issues", disable_web_page_preview=True)
+        if command == 'start':
+            await context.bot.send_message(chat_id=chat_id, text="I can summarize text, URLs, PDFs and YouTube video for you.")
+        elif command == 'help':
+            await context.bot.send_message(chat_id=chat_id, text="Report bugs here 👉 https://github.com/tpai/summary-gpt-bot/issues", disable_web_page_preview=True)
+        elif command == 'summarize':
+            user_input = update.message.text
+            print("user_input=", user_input)
+
+            text_array = process_user_input(user_input)
+            print(text_array)
+
+            if not text_array:
+                raise ValueError("No content found to summarize.")
+
+            await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
+            summary = summarize(text_array)
+            await context.bot.send_message(chat_id=chat_id, text=f"{summary}", reply_to_message_id=update.message.message_id, reply_markup=get_inline_keyboard_buttons())
+        elif command == 'file':
+            file_path = f"{update.message.document.file_unique_id}.pdf"
+            print("file_path=", file_path)
+
+            file = await context.bot.get_file(update.message.document)
+            await file.download_to_drive(file_path)
+
+            text_array = []
+            reader = PdfReader(file_path)
+            for page_num in range(len(reader.pages)):
+                page = reader.pages[page_num]
+                text = page.extract_text()
+                text_array.append(text)
+
+            print(file_path)
+
+            await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
+            summary = summarize(text_array)
+            await context.bot.send_message(chat_id=chat_id, text=f"{summary}", reply_to_message_id=update.message.message_id, reply_markup=get_inline_keyboard_buttons())
+
+            # remove temp file after sending message
+            os.remove(file_path)
+        elif command == 'button_click':
+            original_message_text = update.callback_query.message.text
+            await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
+
+            if update.callback_query.data == "explore_similar":
+                keywords = call_gpt_api(f"{original_message_text}\nBased on the content above, give me the top 5 important keywords with commas.", [
+                    {"role": "system", "content": f"You will print keywords only."}
+                ])
+                print(keywords)
+
+                tasks = []
+                tasks.append(search_results(keywords))
+                results = await asyncio.gather(*tasks)
+                print(results)
+
+                links = ''
+                for r in results[0]:
+                    links += f"{r['title']}\n{r['href']}\n"
+
+                await context.bot.send_message(chat_id=chat_id, text=links, reply_to_message_id=update.callback_query.message.message_id, disable_web_page_preview=True)
+
+            if update.callback_query.data == "why_it_matters":
+                result = call_gpt_api(f"{original_message_text}\nBased on the content above, tell me why it matters as an expert.", [
+                    {"role": "system", "content": f"You will show the result in {lang}."}
+                ])
+                await context.bot.send_message(chat_id=chat_id, text=result, reply_to_message_id=update.callback_query.message.message_id)
     except Exception as e:
         print(f"Error: {e}")
+        await context.bot.send_message(chat_id=chat_id, text=str(e))
+
 
 def process_user_input(user_input):
     youtube_pattern = re.compile(r"https?://(www\.|m\.)?(youtube\.com|youtu\.be)/")
@@ -172,100 +248,12 @@ def process_user_input(user_input):
 
     return text_array
 
-async def handle_summarize(update, context):
-
-    chat_id = update.effective_chat.id
-    message_id = update.message.message_id
-
-    try:
-        user_input = update.message.text
-
-        print(user_input)
-
-        text_array = process_user_input(user_input)
-
-        print(text_array)
-
-        if not text_array:
-            raise ValueError("No content found to summarize.")
-
-        await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
-        summary = summarize(text_array)
-        await context.bot.send_message(chat_id=chat_id, text=f"{summary}", reply_to_message_id=message_id, reply_markup=get_inline_keyboard_buttons())
-    except Exception as e:
-        print(f"Error: {e}")
-        await context.bot.send_message(chat_id=chat_id, text=str(e))
-
-async def handle_file(update, context):
-
-    chat_id = update.effective_chat.id
-    message_id = update.message.message_id
-    file_path = f"{update.message.document.file_unique_id}.pdf"
-
-    try:
-        file = await context.bot.get_file(update.message.document)
-        await file.download_to_drive(file_path)
-
-        text_array = []
-        reader = PdfReader(file_path)
-        for page_num in range(len(reader.pages)):
-            page = reader.pages[page_num]
-            text = page.extract_text()
-            text_array.append(text)
-
-        print(file_path)
-
-        await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
-        summary = summarize(text_array)
-        await context.bot.send_message(chat_id=chat_id, text=f"{summary}", reply_to_message_id=message_id, reply_markup=get_inline_keyboard_buttons())
-    except Exception as e:
-        print(f"Error: {e}")
-
-    try:
-        os.remove(file_path)
-    except Exception as e:
-        print(f"Error: {e}")
-
 def get_inline_keyboard_buttons():
     keyboard = [
         [InlineKeyboardButton("Explore Similar", callback_data="explore_similar")],
         [InlineKeyboardButton("Why It Matters", callback_data="why_it_matters")],
     ]
     return InlineKeyboardMarkup(keyboard)
-
-async def handle_button_click(update, context):
-    chat_id = update.effective_chat.id
-
-    if update.callback_query.data == "explore_similar":
-        # await context.bot.edit_message_text(chat_id=chat_id, message_id=update.callback_query.message.message_id, text=update.callback_query.message.text)
-        original_message_text = update.callback_query.message.text
-
-        await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
-        keywords = call_gpt_api(f"{original_message_text}\nBased on the content above, give me the top 5 important keywords with commas.", [
-            {"role": "system", "content": f"You will print keywords only."}
-        ])
-
-
-        tasks = []
-        tasks.append(search_results(keywords))
-        results = await asyncio.gather(*tasks)
-        print(results)
-
-        links = ''
-        for r in results[0]:
-            links += f"{r['title']}\n{r['href']}\n"
-
-        await context.bot.send_message(chat_id=chat_id, text=links, reply_to_message_id=update.callback_query.message.message_id, disable_web_page_preview=True)
-
-    if update.callback_query.data == "why_it_matters":
-        # await context.bot.edit_message_text(chat_id=chat_id, message_id=update.callback_query.message.message_id, text=update.callback_query.message.text)
-        original_message_text = update.callback_query.message.text
-
-        await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
-        result = call_gpt_api(f"{original_message_text}\nBased on the content above, tell me why it matters as an expert.", [
-            {"role": "system", "content": f"You will show the result in {lang}."}
-        ])
-        await context.bot.send_message(chat_id=chat_id, text=result, reply_to_message_id=update.callback_query.message.message_id)
 
 def main():
     try:
