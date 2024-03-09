@@ -14,7 +14,8 @@ from youtube_transcript_api import YouTubeTranscriptApi
 telegram_token = os.environ.get("TELEGRAM_TOKEN", "xxx")
 model = os.environ.get("LLM_MODEL", "gpt-3.5-turbo-16k")
 lang = os.environ.get("TS_LANG", "Taiwanese Mandarin")
-chunk_size= int(os.environ.get("CHUNK_SIZE", 10000))
+chunk_size = int(os.environ.get("CHUNK_SIZE", 10000))
+allowed_users = os.environ.get("ALLOWED_USERS", "")
 
 def split_user_input(text):
     # Split the input text into paragraphs
@@ -164,6 +165,13 @@ async def handle(command, update, context):
     chat_id = update.effective_chat.id
     print("chat_id=", chat_id)
 
+    if allowed_users:
+        user_ids = allowed_users.split(',')
+        if str(chat_id) not in user_ids:
+            print(chat_id, "is not allowed.")
+            await context.bot.send_message(chat_id=chat_id, text="You have no permission to use this bot.")
+            return
+
     try:
         if command == 'start':
             await context.bot.send_message(chat_id=chat_id, text="I can summarize text, URLs, PDFs and YouTube video for you.")
@@ -195,8 +203,6 @@ async def handle(command, update, context):
                 page = reader.pages[page_num]
                 text = page.extract_text()
                 text_array.append(text)
-
-            print(file_path)
 
             await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
             summary = summarize(text_array)
