@@ -147,13 +147,13 @@ def call_gpt_api(prompt, additional_messages=[]):
         print(f"Error: {e}")
         return ""
 
-async def start(update, context):
+async def handle_start(update, context):
     try:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="I can summarize text, URLs, PDFs and YouTube video for you.")
     except Exception as e:
         print(f"Error: {e}")
 
-async def help(update, context):
+async def handle_help(update, context):
     try:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="Report bugs here 👉 https://github.com/tpai/summary-gpt-bot/issues", disable_web_page_preview=True)
     except Exception as e:
@@ -270,8 +270,8 @@ async def handle_button_click(update, context):
 def main():
     try:
         application = ApplicationBuilder().token(telegram_token).build()
-        start_handler = CommandHandler('start', start)
-        help_handler = CommandHandler('help', help)
+        start_handler = CommandHandler('start', handle_start)
+        help_handler = CommandHandler('help', handle_help)
         summarize_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, handle_summarize)
         file_handler = MessageHandler(filters.Document.PDF, handle_file)
         button_click_handler = CallbackQueryHandler(handle_button_click)
