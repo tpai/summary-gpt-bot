@@ -8,7 +8,7 @@ tqdm==4.66.1
 litellm==1.21.7
 
 # text extraction
-trafilatura==1.7.0
+trafilatura==1.8.1 
 
 # duckduckgo
 duckduckgo_search==4.4.3
