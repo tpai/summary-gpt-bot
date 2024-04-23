@@ -2,8 +2,6 @@
 
 An AI-powered text summarization Telegram bot that generates concise summaries of text, URLs, PDFs and YouTube videos.
 
-> Thanks for using, feel free to self-host your own summary bot.
-
 ## Features
 
 - Supports text
@@ -13,7 +11,7 @@ An AI-powered text summarization Telegram bot that generates concise summaries o
 
 ## Usage
 
-Launch a OpenAI GPT-4 summary bot that only can be used by your friend and you.
+Launch a OpenAI GPT-4 summary bot that only can be used by your friends and you.
 
 ```sh
 docker run -d \
@@ -21,7 +19,7 @@ docker run -d \
     -e OPENAI_API_KEY=$OPENAI_API_KEY \
     -e TELEGRAM_TOKEN=$YOUR_TG_TOKEN \
     -e TS_LANG=$YOUR_LANGUAGE \
-    -e ALLOWED_USERS=<your_friends_id>,<your_id> \
+    -e ALLOWED_USERS=<friend1_id>,<friend2_id>,<your_id> \
     tonypai/summary-gpt-bot:latest
 ```
 
@@ -55,4 +53,4 @@ Bot Variables
 | LLM_MODEL            | LLM Model to use for text summarization (default: gpt-3.5-turbo-16k) |
 | TELEGRAM_TOKEN       | Token for Telegram API (required) |
 | TS_LANG              | Language of the text to be summarized (default: Taiwanese Mandarin) |
-| ALLOWED_USERS        | You can get your own ID by asking to @myidbot (optional) |
+| ALLOWED_USERS        | A list of user IDs allowed to use. Asking @myidbot for Telegram ID (optional) |
