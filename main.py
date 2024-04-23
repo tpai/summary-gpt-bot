@@ -42,9 +42,8 @@ def scrape_text_from_url(url):
         print(f"Error: {e}")
 
 async def search_results(keywords):
-    async with AsyncDDGS() as ddgs:
-        results = [r async for r in ddgs.text(keywords, region='wt-wt', safesearch='off', max_results=3)]
-        return results
+    results = await AsyncDDGS().text(keywords, region='wt-wt', safesearch='off', max_results=3)
+    return results
 
 def summarize(text_array):
     """
@@ -220,8 +219,7 @@ async def handle(command, update, context):
                 ])
                 print(keywords)
 
-                tasks = []
-                tasks.append(search_results(keywords))
+                tasks = [search_results(keywords)]
                 results = await asyncio.gather(*tasks)
                 print(results)
 
