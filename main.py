@@ -14,6 +14,7 @@ from youtube_transcript_api import YouTubeTranscriptApi
 telegram_token = os.environ.get("TELEGRAM_TOKEN", "xxx")
 model = os.environ.get("LLM_MODEL", "gpt-3.5-turbo-16k")
 lang = os.environ.get("TS_LANG", "Taiwanese Mandarin")
+ddg_region = os.environ.get("DDG_REGION", "wt-wt")
 chunk_size = int(os.environ.get("CHUNK_SIZE", 10000))
 allowed_users = os.environ.get("ALLOWED_USERS", "")
 
@@ -42,7 +43,8 @@ def scrape_text_from_url(url):
         print(f"Error: {e}")
 
 async def search_results(keywords):
-    results = await AsyncDDGS().text(keywords, region='wt-wt', safesearch='off', max_results=3)
+    print(keywords, ddg_region)
+    results = await AsyncDDGS().text(keywords, region=ddg_region, safesearch='off', max_results=3)
     return results
 
 def summarize(text_array):
@@ -217,7 +219,6 @@ async def handle(command, update, context):
                 keywords = call_gpt_api(f"{original_message_text}\nBased on the content above, give me the top 5 important keywords with commas.", [
                     {"role": "system", "content": f"You will print keywords only."}
                 ])
-                print(keywords)
 
                 tasks = [search_results(keywords)]
                 results = await asyncio.gather(*tasks)

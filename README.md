@@ -53,4 +53,5 @@ Bot Variables
 | LLM_MODEL            | LLM Model to use for text summarization (default: gpt-3.5-turbo-16k) |
 | TELEGRAM_TOKEN       | Token for Telegram API (required) |
 | TS_LANG              | Language of the text to be summarized (default: Taiwanese Mandarin) |
+| DDG_REGION           | The region of the duckduckgo search (default: wt-wt) 👉[Regions](https://github.com/deedy5/duckduckgo_search#regions) |
 | ALLOWED_USERS        | A list of user IDs allowed to use. Asking @myidbot for Telegram ID (optional) |
