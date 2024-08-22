@@ -14,8 +14,8 @@ from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, f
 from youtube_transcript_api import YouTubeTranscriptApi
 
 telegram_token = os.environ.get("TELEGRAM_TOKEN", "xxx")
-model = os.environ.get("LLM_MODEL", "chatgpt-4o-latest")
-lang = os.environ.get("TS_LANG", "Taiwanese Mandarin")
+model = os.environ.get("LLM_MODEL", "gpt-4o-mini")
+lang = os.environ.get("TS_LANG", "繁體中文")
 ddg_region = os.environ.get("DDG_REGION", "wt-wt")
 chunk_size = int(os.environ.get("CHUNK_SIZE", 2100))
 allowed_users = os.environ.get("ALLOWED_USERS", "")
@@ -75,15 +75,11 @@ def summarize(text_array):
         # Call the GPT API in parallel to summarize the text chunks
         summaries = []
         system_messages = [
-            {"role": "system", "content": "Can you provide a comprehensive summary of the given text? The summary should cover all the key points and main ideas presented in the original text, while also condensing the information into a concise and easy-to-understand format. Please ensure that the summary includes relevant details and examples that support the main ideas, while avoiding any unnecessary information or repetition. The length of the summary should be appropriate for the length and complexity of the original text, providing a clear and accurate overview without omitting any important information"},
-            {"role": "system", "content": "Ensure the content is printed in {lang}."}
+            {"role": "system", "content": "Provide a comprehensive summary of the given text. 總結該內容的要點，並在最後一段列出相關關鍵詞，"},
+            {"role": "system", "content": "Ensure the content is printed in {lang}."} 
         ]
 
-#        system_messages = [
-#            {"role": "system", "content": "You are an expert in creating summaries that capture the main points and key details."},
-#            {"role": "system", "content": f"You will show the bulleted list content without translate any technical terms."},
-#            {"role": "system", "content": f"You will print all the content in {lang}."},
-#        ]
+
 
         with ThreadPoolExecutor() as executor:
             futures = [executor.submit(call_gpt_api, f"Summary keypoints for the following text:\n{chunk}", system_messages) for chunk in text_chunks]
