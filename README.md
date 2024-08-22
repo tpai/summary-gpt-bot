@@ -49,8 +49,8 @@ Bot Variables
 
 | Environment Variable | Description |
 |----------------------|-------------|
-| CHUNK_SIZE           | The maximum token of a chunk when receiving a large input (default: 10000) |
-| LLM_MODEL            | LLM Model to use for text summarization (default: gpt-3.5-turbo-16k) |
+| CHUNK_SIZE           | The maximum token of a chunk when receiving a large input (default: 2100) |
+| LLM_MODEL            | LLM Model to use for text summarization (default: chatgpt-4o-latest) |
 | TELEGRAM_TOKEN       | Token for Telegram API (required) |
 | TS_LANG              | Language of the text to be summarized (default: Taiwanese Mandarin) |
 | DDG_REGION           | The region of the duckduckgo search (default: wt-wt) 👉[Regions](https://github.com/deedy5/duckduckgo_search#regions) |
