@@ -2,6 +2,8 @@ import asyncio
 import os
 import re
 import trafilatura
+# 要註冊telegram 選單之用指令
+import requests
 from litellm import completion
 from duckduckgo_search import AsyncDDGS
 from PyPDF2 import PdfReader
@@ -12,11 +14,12 @@ from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, f
 from youtube_transcript_api import YouTubeTranscriptApi
 
 telegram_token = os.environ.get("TELEGRAM_TOKEN", "xxx")
-model = os.environ.get("LLM_MODEL", "gpt-3.5-turbo-16k")
+model = os.environ.get("LLM_MODEL", "chatgpt-4o-latest")
 lang = os.environ.get("TS_LANG", "Taiwanese Mandarin")
 ddg_region = os.environ.get("DDG_REGION", "wt-wt")
-chunk_size = int(os.environ.get("CHUNK_SIZE", 10000))
+chunk_size = int(os.environ.get("CHUNK_SIZE", 2100))
 allowed_users = os.environ.get("ALLOWED_USERS", "")
+
 
 def split_user_input(text):
     # Split the input text into paragraphs
@@ -72,10 +75,16 @@ def summarize(text_array):
         # Call the GPT API in parallel to summarize the text chunks
         summaries = []
         system_messages = [
-            {"role": "system", "content": "You are an expert in creating summaries that capture the main points and key details."},
-            {"role": "system", "content": f"You will show the bulleted list content without translate any technical terms."},
-            {"role": "system", "content": f"You will print all the content in {lang}."},
+            {"role": "system", "content": "Can you provide a comprehensive summary of the given text? The summary should cover all the key points and main ideas presented in the original text, while also condensing the information into a concise and easy-to-understand format. Please ensure that the summary includes relevant details and examples that support the main ideas, while avoiding any unnecessary information or repetition. The length of the summary should be appropriate for the length and complexity of the original text, providing a clear and accurate overview without omitting any important information"},
+            {"role": "system", "content": "Ensure the content is printed in {lang}."}
         ]
+
+#        system_messages = [
+#            {"role": "system", "content": "You are an expert in creating summaries that capture the main points and key details."},
+#            {"role": "system", "content": f"You will show the bulleted list content without translate any technical terms."},
+#            {"role": "system", "content": f"You will print all the content in {lang}."},
+#        ]
+
         with ThreadPoolExecutor() as executor:
             futures = [executor.submit(call_gpt_api, f"Summary keypoints for the following text:\n{chunk}", system_messages) for chunk in text_chunks]
             for future in tqdm(futures, total=len(text_chunks), desc="Summarizing"):
@@ -91,7 +100,7 @@ def summarize(text_array):
             return summarize(summaries)
     except Exception as e:
         print(f"Error: {e}")
-        return "Unknown error! Please contact the developer."
+        return "Unknown error! Please contact the owner. ok@vip.david888.com  "
 
 def extract_youtube_transcript(youtube_url):
     try:
@@ -168,16 +177,22 @@ async def handle(command, update, context):
 
     if allowed_users:
         user_ids = allowed_users.split(',')
-        if str(chat_id) not in user_ids:
-            print(chat_id, "is not allowed.")
-            await context.bot.send_message(chat_id=chat_id, text="You have no permission to use this bot.")
-            return
+    # 檢查是否允許使用者或群組
+        if str(chat_id) not in user_ids and str(chat_id) not in user_ids:
+           print(chat_id, "is not allowed.")
+           await context.bot.send_message(chat_id=chat_id, text="You have no permission to use this bot.")
+           return
+
+#        if str(chat_id) not in user_ids:
+#            print(chat_id, "is not allowed.")
+#            await context.bot.send_message(chat_id=chat_id, text="You have no permission to use this bot.")
+#            return
 
     try:
         if command == 'start':
             await context.bot.send_message(chat_id=chat_id, text="I can summarize text, URLs, PDFs and YouTube video for you.")
         elif command == 'help':
-            await context.bot.send_message(chat_id=chat_id, text="Report bugs here 👉 https://github.com/tpai/summary-gpt-bot/issues", disable_web_page_preview=True)
+            await context.bot.send_message(chat_id=chat_id, text="貼上您的URL, Youtube, 或PDF |  Report bugs here 👉 https://github.com/tbdavid2019 ", disable_web_page_preview=True)
         elif command == 'summarize':
             user_input = update.message.text
             print("user_input=", user_input)
@@ -260,11 +275,27 @@ def get_inline_keyboard_buttons():
     ]
     return InlineKeyboardMarkup(keyboard)
 
+
+def set_my_commands(telegram_token):
+    url = f"https://api.telegram.org/bot{telegram_token}/setMyCommands"
+    commands = [
+        {"command": "start", "description": "開始使用機器人並獲取介紹"},
+        {"command": "help", "description": "顯示此幫助訊息"},
+    ]
+    data = {"commands": commands}
+    response = requests.post(url, json=data)
+
+    if response.status_code == 200:
+        print("Commands set successfully.")
+    else:
+        print(f"Failed to set commands: {response.text}")
+
 def main():
     try:
         application = ApplicationBuilder().token(telegram_token).build()
         start_handler = CommandHandler('start', handle_start)
         help_handler = CommandHandler('help', handle_help)
+        set_my_commands(telegram_token)
         summarize_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, handle_summarize)
         file_handler = MessageHandler(filters.Document.PDF, handle_file)
         button_click_handler = CallbackQueryHandler(handle_button_click)
