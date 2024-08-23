@@ -75,21 +75,18 @@ def summarize(text_array):
         # Call the GPT API in parallel to summarize the text chunks
         summaries = []
         system_messages = [
-            {"role": "system", "content": "Provide a comprehensive summary of the given text. 總結該內容的要點，並在最後一段列出相關關鍵詞，"},
-            {"role": "system", "content": "Ensure the content is printed in {lang}."} 
+            {"role": "system", "content": "將以下原文總結為三個部分：總結 (Overall Summary)、摘要 (Abstract)、觀點 (Viewpoints)。每個部分的格式如下：1. 總結 (Overall Summary): 包含整體概述，簡明扼要地闡述文章的主要內容。2. 摘要 (Abstract):短文重點描述說明 3. 觀點 (Viewpoints): 陳列點提出並總結文章中的主要觀點或看法 4. 關鍵字列表"},
+            {"role": "system", "content": "不要過度濃縮，不要幻覺，該提到看法都要盡可能列出。Ensure the content is printed in {lang}."} 
         ]
-
-
-
         with ThreadPoolExecutor() as executor:
-            futures = [executor.submit(call_gpt_api, f"Summary keypoints for the following text:\n{chunk}", system_messages) for chunk in text_chunks]
+            futures = [executor.submit(call_gpt_api, f"總結 the following text:\n{chunk}", system_messages) for chunk in text_chunks]
             for future in tqdm(futures, total=len(text_chunks), desc="Summarizing"):
                 summaries.append(future.result())
 
         if len(summaries) <= 5:
             summary = ' '.join(summaries)
             with tqdm(total=1, desc="Final summarization") as progress_bar:
-                final_summary = call_gpt_api(f"Create a bulleted list using {lang} to show the key points of the following text:\n{summary}", system_messages)
+                final_summary = call_gpt_api(f"using {lang} to 總結  the following text:\n{summary}", system_messages)
                 progress_bar.update(1)
             return final_summary
         else:
@@ -189,9 +186,9 @@ async def handle(command, update, context):
 
     try:
         if command == 'start':
-            await context.bot.send_message(chat_id=chat_id, text="I can summarize text, URLs, PDFs and YouTube video for you.")
+            await context.bot.send_message(chat_id=chat_id, text="I can summarize text, URLs, PDFs and YouTube video for you.請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。提醒：我無法聊天，所以不要問我問題，我只能總結文章或影片字幕。")
         elif command == 'help':
-            await context.bot.send_message(chat_id=chat_id, text="貼上您的URL, Youtube, 或PDF |  Report bugs here 👉 https://github.com/tbdavid2019 ", disable_web_page_preview=True)
+            await context.bot.send_message(chat_id=chat_id, text="請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。提醒：我無法聊天，所以不要問我問題，我只能總結文章或影片字幕。 |  Report bugs here 👉 https://github.com/tbdavid2019 ", disable_web_page_preview=True)
         elif command == 'summarize':
             user_input = update.message.text
             print("user_input=", user_input)
