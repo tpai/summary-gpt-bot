@@ -306,6 +306,15 @@ def get_inline_keyboard_buttons():
     ]
     return InlineKeyboardMarkup(keyboard)
 
+def delete_my_commands(telegram_token):
+    url = f"https://api.telegram.org/bot{telegram_token}/deleteMyCommands"
+    response = requests.post(url)
+
+    if response.status_code == 200:
+        print("Old commands deleted successfully.")
+    else:
+        print(f"Failed to delete old commands: {response.text}")
+
 
 def set_my_commands(telegram_token):
     url = f"https://api.telegram.org/bot{telegram_token}/setMyCommands"
@@ -326,6 +335,7 @@ def main():
         application = ApplicationBuilder().token(telegram_token).build()
         start_handler = CommandHandler('start', handle_start)
         help_handler = CommandHandler('help', handle_help)
+        delete_my_commands(telegram_token)
         set_my_commands(telegram_token)
         summarize_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, handle_summarize)
         file_handler = MessageHandler(filters.Document.PDF, handle_file)
