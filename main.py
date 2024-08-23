@@ -49,7 +49,7 @@ async def search_results(keywords):
     print(keywords, ddg_region)
     results = await AsyncDDGS().text(keywords, region=ddg_region, safesearch='off', max_results=3)
     return results
-
+    
 def summarize(text_array):
     """
     Summarize the text using GPT API
@@ -70,14 +70,37 @@ def summarize(text_array):
 
     try:
         text_chunks = create_chunks(text_array)
-        text_chunks = [chunk for chunk in text_chunks if chunk] # Remove empty chunks
+        text_chunks = [chunk for chunk in text_chunks if chunk]  # 移除空白的區塊
 
-        # Call the GPT API in parallel to summarize the text chunks
+        # 並行呼叫 GPT API 來總結文本區塊
         summaries = []
         system_messages = [
-            {"role": "system", "content": "將以下原文總結為三個部分：總結 (Overall Summary)、摘要 (Abstract)、觀點 (Viewpoints)。每個部分的格式如下：1. 總結 (Overall Summary): 包含整體概述，簡明扼要地闡述文章的主要內容。2. 摘要 (Abstract):短文重點描述說明 3. 觀點 (Viewpoints): 陳列點提出並總結文章中的主要觀點或看法 4. 關鍵字列表"},
-            {"role": "system", "content": "不要過度濃縮，不要幻覺，該提到看法都要盡可能列出。Ensure the content is printed in {lang}."} 
+            {
+                "role": "system",
+                "content": (
+                    "您的輸出應使用以下模板：\n\n"
+                    "### Summary\n\n"
+                    "### Analogy\n\n"
+                    "### Notes\n\n"
+                    "- [Emoji] Bulletpoint\n\n"
+                    "### Keywords\n\n"
+                    "- Explanation\n\n"
+                    "您被要求使用 YouTube 影片,網站內容,PDF內容,文字內容的轉錄來創建簡明的總結，以供自己的筆記。\n"
+                    "您需要像該領域的專家一樣處理轉錄內容。\n\n"
+                    "製作轉錄內容的總結。使用轉錄中的關鍵詞，但不要解釋它們。關鍵詞會在後面進行解釋。\n\n"
+                    "此外，從轉錄內容中提取一個複雜的短比喻來提供背景或日常生活的類比。\n\n"
+                    "創建 10 個帶有適當表情符號的重點摘要，概括影片轉錄中的關鍵點或重要時刻。\n\n"
+                    "除了重點摘要外，還要提取最重要的關鍵詞和不為一般讀者所熟知的複雜詞彙，"
+                    "以及轉錄中提到的任何縮寫。對於每個關鍵詞和複雜詞彙，根據它在轉錄中的出現情況提供解釋和定義。\n\n"
+                    "請確保總結、重點摘要和解釋都符合 550 字的限制，同時仍然提供對影片內容的全面且清晰的理解。"
+                )
+            },
+            {
+                "role": "system",
+                "content": "不要過度濃縮，不要幻覺，該提到看法都要盡可能列出。Ensure the content is printed in {lang}."
+            }
         ]
+
         with ThreadPoolExecutor() as executor:
             futures = [executor.submit(call_gpt_api, f"總結 the following text:\n{chunk}", system_messages) for chunk in text_chunks]
             for future in tqdm(futures, total=len(text_chunks), desc="Summarizing"):
@@ -86,14 +109,14 @@ def summarize(text_array):
         if len(summaries) <= 5:
             summary = ' '.join(summaries)
             with tqdm(total=1, desc="Final summarization") as progress_bar:
-                final_summary = call_gpt_api(f"using {lang} to 總結  the following text:\n{summary}", system_messages)
+                final_summary = call_gpt_api(f"using {lang} to 總結 the following text:\n{summary}", system_messages)
                 progress_bar.update(1)
             return final_summary
         else:
             return summarize(summaries)
     except Exception as e:
         print(f"Error: {e}")
-        return "Unknown error! Please contact the owner. ok@vip.david888.com  "
+        return "Unknown error! Please contact the owner. ok@vip.david888.com"
 
 def extract_youtube_transcript(youtube_url):
     try:
