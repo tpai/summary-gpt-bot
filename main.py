@@ -103,6 +103,18 @@ def summarize(text_array):
 
         with ThreadPoolExecutor() as executor:
             futures = [executor.submit(call_gpt_api, f"總結 the following text:\n{chunk}", system_messages) for chunk in text_chunks]
+            summaries = [future.result() for future in tqdm(futures, total=len(text_chunks), desc="Summarizing")]
+
+        # 將所有總結結果合併成最終的總結
+        final_summary = ' '.join(summaries)
+        return final_summary
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return "Unknown error! Please contact the owner. ok@vip.david888.com"
+
+        with ThreadPoolExecutor() as executor:
+            futures = [executor.submit(call_gpt_api, f"總結 the following text:\n{chunk}", system_messages) for chunk in text_chunks]
             for future in tqdm(futures, total=len(text_chunks), desc="Summarizing"):
                 summaries.append(future.result())
 
