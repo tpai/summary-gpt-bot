@@ -8,17 +8,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-    - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag tonypai/summary-gpt-bot:$(echo $GITHUB_REF | rev | cut -d/ -f1 | rev)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Docker login
-      run: docker login --username ${{ secrets.DOCKER_USERNAME }} --password ${{ secrets.DOCKER_PASSWORD }}
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-    - name: Push Docker image
-      run: |
-        TAG_NAME=$(echo $GITHUB_REF | rev | cut -d/ -f1 | rev)
-        docker push tonypai/summary-gpt-bot:$TAG_NAME
-        docker tag tonypai/summary-gpt-bot:$TAG_NAME tonypai/summary-gpt-bot:latest
-        docker push tonypai/summary-gpt-bot:latest
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: tonypai/summary-gpt-bot:${{ github.ref_name }}
