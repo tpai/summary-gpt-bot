@@ -1,5 +1,7 @@
 # Summary GPT Bot
 
+<img width="575" alt="image" src="https://github.com/user-attachments/assets/7465b142-7fa1-4889-9f98-d74194ca72e3">
+
 An AI-powered text summarization Telegram bot that generates concise summaries of text, URLs, PDFs and YouTube videos.
 
 ## Features
