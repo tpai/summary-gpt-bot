@@ -198,7 +198,7 @@ async def handle(command, update, context):
 
     if allowed_users:
         user_ids = allowed_users.split(',')
-    # 檢查是否允許使用者或群組
+    # 檢查是否允許使用者或羣組
         if str(chat_id) not in user_ids and str(chat_id) not in user_ids:
            print(chat_id, "is not allowed.")
            await context.bot.send_message(chat_id=chat_id, text="You have no permission to use this bot.")
@@ -213,7 +213,16 @@ async def handle(command, update, context):
         if command == 'start':
             await context.bot.send_message(chat_id=chat_id, text="I can summarize text, URLs, PDFs and YouTube video for you.請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。提醒：我無法聊天，所以不要問我問題，我只能總結文章或影片字幕。")
         elif command == 'help':
-            await context.bot.send_message(chat_id=chat_id, text="請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。提醒：我無法聊天，所以不要問我問題，我只能總結文章或影片字幕。 |  Report bugs here 👉 https://github.com/tbdavid2019 ", disable_web_page_preview=True)
+#            await context.bot.send_message(chat_id=chat_id, text="請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。提醒：我無法聊天，所以不要問我問題，我只能總結文章或影片字幕。 |  Report bugs here 👉 https://github.com/tbdavid2019 ", disable_web_page_preview=True)
+            await context.bot.send_message(
+                chat_id=chat_id, 
+                text=(
+                    "請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，"
+                    "YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。"
+                    "提醒：我無法聊天，所以不要問我問題，我只能總結文章或影片字幕。 | Report bugs here 👉 https://github.com/tbdavid2019"
+                ), 
+                disable_web_page_preview=True
+            )
         elif command == 'summarize':
             user_input = update.message.text
             print("user_input=", user_input)
@@ -298,9 +307,10 @@ def get_inline_keyboard_buttons():
 
 
 def set_my_commands(telegram_token):
+    clear_old_commands(telegram_token)  # 清除舊的命令
     url = f"https://api.telegram.org/bot{telegram_token}/setMyCommands"
     commands = [
-        {"command": "start", "description": "開始使用機器人並獲取介紹"},
+        {"command": "start", "description": "確認機器人是否在線"},
         {"command": "help", "description": "顯示此幫助訊息"},
     ]
     data = {"commands": commands}
