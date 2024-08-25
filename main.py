@@ -47,9 +47,10 @@ def scrape_text_from_url(url):
 
 async def search_results(keywords):
     print(keywords, ddg_region)
-    results = await AsyncDDGS().text(keywords, region=ddg_region, safesearch='off', max_results=3)
+    results = await AsyncDDGS().text(keywords, region=ddg_region, safesearch='off', max_results=6)
     return results
-    
+
+
 def summarize(text_array):
     """
     Summarize the text using GPT API
@@ -72,42 +73,51 @@ def summarize(text_array):
         text_chunks = create_chunks(text_array)
         text_chunks = [chunk for chunk in text_chunks if chunk]  # 移除空白的區塊
 
-        # 並行呼叫 GPT API 來總結文本區塊
+       # 並行呼叫 GPT API 來總結文本區塊
         summaries = []
         system_messages = [
-            {"role": "system", "content": "將以下原文總結為四個部分：1. 總結 (Overall Summary)，2. 觀點 (Viewpoints)，3. 摘要 (Abstract) 創建 6到10 個帶有適當表情符號的重點摘要，4. 關鍵字 (Key Words)。請確保每個部分只生成一次，且內容不重複。"}
+            {"role": "system", "content": "將以下原文總結為四個部分：總結 (Overall Summary)。觀點 (Viewpoints)。摘要 (Abstract)： 創建6到10個帶有適當表情符號的重點摘要。關鍵字 (Key Words)。請確保每個部分只生成一次，且內容不重複。確保生成的文字都是{lang}為主"}
         ]
 
         with ThreadPoolExecutor() as executor:
             futures = [executor.submit(call_gpt_api, f"總結 the following text:\n{chunk}", system_messages) for chunk in text_chunks]
             summaries = [future.result() for future in tqdm(futures, total=len(text_chunks), desc="Summarizing")]
 
-        # 移除重複的部分標記並合併
-        final_summary = []
-        overall_summary_added = False
-        viewpoints_added = False
-        abstract_added = False
-        key_words_added = False
-        
+        # 初始化每個部分的結果為空
+        final_summary = {
+            "overall_summary": "",
+            "viewpoints": "",
+            "abstract": "",
+            "keywords": ""
+        }
         for summary in summaries:
-            if '總結 (Overall Summary)' in summary and not overall_summary_added:
-                final_summary.append('1. **總結 (Overall Summary)**\n' + summary.split('觀點 (Viewpoints)')[0])
-                overall_summary_added = True
-            if '觀點 (Viewpoints)' in summary and not viewpoints_added:
-                final_summary.append('2. **觀點 (Viewpoints)**\n' + summary.split('摘要 (Abstract)')[0].split('觀點 (Viewpoints)')[1])
-                viewpoints_added = True
-            if '摘要 (Abstract)' in summary and not abstract_added:
-                final_summary.append('3. **摘要 (Abstract)**\n' + summary.split('關鍵字 (Key Words)')[0].split('摘要 (Abstract)')[1])
-                abstract_added = True
-            if '關鍵字 (Key Words)' in summary and not key_words_added:
-                final_summary.append('4. **關鍵字 (Key Words)**\n' + summary.split('關鍵字 (Key Words)')[1])
-                key_words_added = True
+            if '總結 (Overall Summary)' in summary and not final_summary["overall_summary"]:
+                final_summary["overall_summary"] = summary.split('觀點 (Viewpoints)')[0].strip()
+            if '觀點 (Viewpoints)' in summary and not final_summary["viewpoints"]:
+                content = summary.split('摘要 (Abstract)')[0].split('觀點 (Viewpoints)')[1].strip()
+                final_summary["viewpoints"] = content
+            if '摘要 (Abstract)' in summary and not final_summary["abstract"]:
+                content = summary.split('關鍵字 (Key Words)')[0].split('摘要 (Abstract)')[1].strip()
+                final_summary["abstract"] = content
+            if '關鍵字 (Key Words)' in summary and not final_summary["keywords"]:
+                content = summary.split('關鍵字 (Key Words)')[1].strip()
+                final_summary["keywords"] = content
 
-        return '\n'.join(final_summary)
+        # 組合結果並返回
+        output = "\n\n".join([
+            f"  歡迎使用 Oli 家 小濃縮機器人 (Summary) \n{final_summary['overall_summary']}",
+            f" **觀點 (Viewpoints)**\n{final_summary['viewpoints']}",
+            f" **摘要 (Abstract)**\n{final_summary['abstract']}",
+            f" **關鍵字 (Key Words)**\n{final_summary['keywords']}"
+        ])
+        return output
+
 
     except Exception as e:
         print(f"Error: {e}")
         return "Unknown error! Please contact the owner. ok@vip.david888.com"
+
+
 
 def extract_youtube_transcript(youtube_url):
     try:
@@ -119,7 +129,8 @@ def extract_youtube_transcript(youtube_url):
         # Get all available languages
         available_languages = [transcript.language_code for transcript in transcript_list]
         # Try to find the transcript in any available language
-        transcript = transcript_list.find_transcript(available_languages)        
+        transcript = transcript_list.find_transcript(available_languages)
+        # 舊的寫法 會造成 transcript = transcript_list.find_transcript(['en', 'ja', 'ko', 'de', 'fr', 'ru', 'it', 'es', 'pl', 'uk', 'nl', 'zh-TW', 'zh-CN', 'zh-Hant', 'zh-Hans'])
         transcript_text = ' '.join([item['text'] for item in transcript.fetch()])
         return transcript_text
     except Exception as e:
@@ -187,7 +198,7 @@ async def handle(command, update, context):
 
     if allowed_users:
         user_ids = allowed_users.split(',')
-    # 檢查是否允許使用者或羣組
+    # 檢查是否允許使用者或群組
         if str(chat_id) not in user_ids and str(chat_id) not in user_ids:
            print(chat_id, "is not allowed.")
            await context.bot.send_message(chat_id=chat_id, text="You have no permission to use this bot.")
@@ -285,15 +296,6 @@ def get_inline_keyboard_buttons():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-def delete_my_commands(telegram_token):
-    url = f"https://api.telegram.org/bot{telegram_token}/deleteMyCommands"
-    response = requests.post(url)
-
-    if response.status_code == 200:
-        print("Old commands deleted successfully.")
-    else:
-        print(f"Failed to delete old commands: {response.text}")
-
 
 def set_my_commands(telegram_token):
     url = f"https://api.telegram.org/bot{telegram_token}/setMyCommands"
@@ -314,7 +316,6 @@ def main():
         application = ApplicationBuilder().token(telegram_token).build()
         start_handler = CommandHandler('start', handle_start)
         help_handler = CommandHandler('help', handle_help)
-        delete_my_commands(telegram_token)
         set_my_commands(telegram_token)
         summarize_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, handle_summarize)
         file_handler = MessageHandler(filters.Document.PDF, handle_file)
