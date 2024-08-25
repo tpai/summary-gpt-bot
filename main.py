@@ -75,57 +75,36 @@ def summarize(text_array):
         # 並行呼叫 GPT API 來總結文本區塊
         summaries = []
         system_messages = [
-            {
-                "role": "system",
-                "content": (
-                    "您的輸出應使用以下模板：\n\n"
-                    "### Summary\n\n"
-                    "### Analogy\n\n"
-                    "### Notes\n\n"
-                    "- [Emoji] Bulletpoint\n\n"
-                    "### Keywords\n\n"
-                    "- Explanation\n\n"
-                    "您被要求使用 YouTube 影片,網站內容,PDF內容,文字內容的轉錄來創建簡明的總結，以供自己的筆記。\n"
-                    "您需要像該領域的專家一樣處理轉錄內容。\n\n"
-                    "製作轉錄內容的總結。使用轉錄中的關鍵詞，但不要解釋它們。關鍵詞會在後面進行解釋。\n\n"
-                    "此外，從轉錄內容中提取一個複雜的短比喻來提供背景或日常生活的類比。\n\n"
-                    "創建 10 個帶有適當表情符號的重點摘要，概括影片轉錄中的關鍵點或重要時刻。\n\n"
-                    "除了重點摘要外，還要提取最重要的關鍵詞和不為一般讀者所熟知的複雜詞彙，"
-                    "以及轉錄中提到的任何縮寫。對於每個關鍵詞和複雜詞彙，根據它在轉錄中的出現情況提供解釋和定義。\n\n"
-                    "請確保總結、重點摘要和解釋都符合 550 字的限制，同時仍然提供對影片內容的全面且清晰的理解。"
-                )
-            },
-            {
-                "role": "system",
-                "content": "不要過度濃縮，不要幻覺，該提到看法都要盡可能列出。Ensure the content is printed in {lang}."
-            }
+            {"role": "system", "content": "將以下原文總結為四個部分：1. 總結 (Overall Summary)，2. 觀點 (Viewpoints)，3. 摘要 (Abstract) 創建 6到10 個帶有適當表情符號的重點摘要，4. 關鍵字 (Key Words)。請確保每個部分只生成一次，且內容不重複。"}
         ]
 
         with ThreadPoolExecutor() as executor:
             futures = [executor.submit(call_gpt_api, f"總結 the following text:\n{chunk}", system_messages) for chunk in text_chunks]
             summaries = [future.result() for future in tqdm(futures, total=len(text_chunks), desc="Summarizing")]
 
-        # 將所有總結結果合併成最終的總結
-        final_summary = ' '.join(summaries)
-        return final_summary
+        # 移除重複的部分標記並合併
+        final_summary = []
+        overall_summary_added = False
+        viewpoints_added = False
+        abstract_added = False
+        key_words_added = False
+        
+        for summary in summaries:
+            if '總結 (Overall Summary)' in summary and not overall_summary_added:
+                final_summary.append('1. **總結 (Overall Summary)**\n' + summary.split('觀點 (Viewpoints)')[0])
+                overall_summary_added = True
+            if '觀點 (Viewpoints)' in summary and not viewpoints_added:
+                final_summary.append('2. **觀點 (Viewpoints)**\n' + summary.split('摘要 (Abstract)')[0].split('觀點 (Viewpoints)')[1])
+                viewpoints_added = True
+            if '摘要 (Abstract)' in summary and not abstract_added:
+                final_summary.append('3. **摘要 (Abstract)**\n' + summary.split('關鍵字 (Key Words)')[0].split('摘要 (Abstract)')[1])
+                abstract_added = True
+            if '關鍵字 (Key Words)' in summary and not key_words_added:
+                final_summary.append('4. **關鍵字 (Key Words)**\n' + summary.split('關鍵字 (Key Words)')[1])
+                key_words_added = True
 
-    except Exception as e:
-        print(f"Error: {e}")
-        return "Unknown error! Please contact the owner. ok@vip.david888.com"
+        return '\n'.join(final_summary)
 
-        with ThreadPoolExecutor() as executor:
-            futures = [executor.submit(call_gpt_api, f"總結 the following text:\n{chunk}", system_messages) for chunk in text_chunks]
-            for future in tqdm(futures, total=len(text_chunks), desc="Summarizing"):
-                summaries.append(future.result())
-
-        if len(summaries) <= 5:
-            summary = ' '.join(summaries)
-            with tqdm(total=1, desc="Final summarization") as progress_bar:
-                final_summary = call_gpt_api(f"using {lang} to 總結 the following text:\n{summary}", system_messages)
-                progress_bar.update(1)
-            return final_summary
-        else:
-            return summarize(summaries)
     except Exception as e:
         print(f"Error: {e}")
         return "Unknown error! Please contact the owner. ok@vip.david888.com"
@@ -208,7 +187,7 @@ async def handle(command, update, context):
 
     if allowed_users:
         user_ids = allowed_users.split(',')
-    # 檢查是否允許使用者或群組
+    # 檢查是否允許使用者或羣組
         if str(chat_id) not in user_ids and str(chat_id) not in user_ids:
            print(chat_id, "is not allowed.")
            await context.bot.send_message(chat_id=chat_id, text="You have no permission to use this bot.")
