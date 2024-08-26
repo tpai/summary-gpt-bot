@@ -305,6 +305,22 @@ def get_inline_keyboard_buttons():
     ]
     return InlineKeyboardMarkup(keyboard)
 
+def clear_old_commands(telegram_token):
+    url = f"https://api.telegram.org/bot{telegram_token}/deleteMyCommands"
+    
+    # 刪除不同範圍的命令
+    scopes = ["default", "all_private_chats", "all_group_chats", "all_chat_administrators"]
+    
+    for scope in scopes:
+        data = {"scope": {"type": scope}}
+        response = requests.post(url, json=data)
+        
+        if response.status_code == 200:
+            print(f"Old commands cleared successfully for scope: {scope}")
+        else:
+            print(f"Failed to clear old commands for scope {scope}: {response.text}")
+        print(f"Failed to clear old commands: {response.text}")
+
 
 def set_my_commands(telegram_token):
     clear_old_commands(telegram_token)  # 清除舊的命令
