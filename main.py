@@ -1,8 +1,11 @@
-import asyncio
+import yt_dlp
+from pydub import AudioSegment
+import subprocess
+import json
 import os
 import re
 import trafilatura
-# 要註冊telegram 選單之用指令
+import uuid
 import requests
 from litellm import completion
 from duckduckgo_search import AsyncDDGS
@@ -13,27 +16,22 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, filters, ApplicationBuilder
 from youtube_transcript_api import YouTubeTranscriptApi
 
+# 從環境變數中取得 OpenAI API Key
+openai_api_key = os.environ.get("OPENAI_API_KEY", "YOUR_API_KEY")
 telegram_token = os.environ.get("TELEGRAM_TOKEN", "xxx")
 model = os.environ.get("LLM_MODEL", "gpt-4o-mini")
 lang = os.environ.get("TS_LANG", "繁體中文")
 ddg_region = os.environ.get("DDG_REGION", "wt-wt")
 chunk_size = int(os.environ.get("CHUNK_SIZE", 2100))
 allowed_users = os.environ.get("ALLOWED_USERS", "")
-
+use_audio_fallback = int(os.environ.get("USE_AUDIO_FALLBACK", "0"))
 
 def split_user_input(text):
-    # Split the input text into paragraphs
     paragraphs = text.split('\n')
-
-    # Remove empty paragraphs and trim whitespace
     paragraphs = [paragraph.strip() for paragraph in paragraphs if paragraph.strip()]
-
     return paragraphs
 
 def scrape_text_from_url(url):
-    """
-    Scrape the content from the URL
-    """
     try:
         downloaded = trafilatura.fetch_url(url)
         text = trafilatura.extract(downloaded, include_formatting=True)
@@ -50,12 +48,7 @@ async def search_results(keywords):
     results = await AsyncDDGS().text(keywords, region=ddg_region, safesearch='off', max_results=6)
     return results
 
-
 def summarize(text_array):
-    """
-    Summarize the text using GPT API
-    """
-
     def create_chunks(paragraphs):
         chunks = []
         chunk = ''
@@ -71,9 +64,8 @@ def summarize(text_array):
 
     try:
         text_chunks = create_chunks(text_array)
-        text_chunks = [chunk for chunk in text_chunks if chunk]  # 移除空白的區塊
+        text_chunks = [chunk for chunk in text_chunks if chunk]
 
-       # 並行呼叫 GPT API 來總結文本區塊
         summaries = []
         system_messages = [
             {"role": "system", "content": "將以下原文總結為四個部分：總結 (Overall Summary)。觀點 (Viewpoints)。摘要 (Abstract)： 創建6到10個帶有適當表情符號的重點摘要。關鍵字 (Key Words)。請確保每個部分只生成一次，且內容不重複。確保生成的文字都是{lang}為主"}
@@ -83,7 +75,6 @@ def summarize(text_array):
             futures = [executor.submit(call_gpt_api, f"總結 the following text:\n{chunk}", system_messages) for chunk in text_chunks]
             summaries = [future.result() for future in tqdm(futures, total=len(text_chunks), desc="Summarizing")]
 
-        # 初始化每個部分的結果為空
         final_summary = {
             "overall_summary": "",
             "viewpoints": "",
@@ -103,7 +94,6 @@ def summarize(text_array):
                 content = summary.split('關鍵字 (Key Words)')[1].strip()
                 final_summary["keywords"] = content
 
-        # 組合結果並返回
         output = "\n\n".join([
             f"  歡迎使用 Oli 家 小濃縮機器人 (Summary) \n{final_summary['overall_summary']}",
             f" **觀點 (Viewpoints)**\n{final_summary['viewpoints']}",
@@ -111,13 +101,9 @@ def summarize(text_array):
             f" **關鍵字 (Key Words)**\n{final_summary['keywords']}"
         ])
         return output
-
-
     except Exception as e:
         print(f"Error: {e}")
         return "Unknown error! Please contact the owner. ok@vip.david888.com"
-
-
 
 def extract_youtube_transcript(youtube_url):
     try:
@@ -126,11 +112,8 @@ def extract_youtube_transcript(youtube_url):
         if video_id is None:
             return "no transcript"
         transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        # Get all available languages
         available_languages = [transcript.language_code for transcript in transcript_list]
-        # Try to find the transcript in any available language
         transcript = transcript_list.find_transcript(available_languages)
-        # 舊的寫法 會造成 transcript = transcript_list.find_transcript(['en', 'ja', 'ko', 'de', 'fr', 'ru', 'it', 'es', 'pl', 'uk', 'nl', 'zh-TW', 'zh-CN', 'zh-Hant', 'zh-Hans'])
         transcript_text = ' '.join([item['text'] for item in transcript.fetch()])
         return transcript_text
     except Exception as e:
@@ -138,38 +121,107 @@ def extract_youtube_transcript(youtube_url):
         return "no transcript"
 
 def retrieve_yt_transcript_from_url(youtube_url):
-    output = extract_youtube_transcript(youtube_url)
-    if output == 'no transcript':
-        raise ValueError("There's no valid transcript in this video.")
-    # Split output into an array based on the end of the sentence (like a dot),
-    # but each chunk should be smaller than chunk_size
-    output_sentences = output.split(' ')
-    output_chunks = []
-    current_chunk = ""
+    try:
+        output = extract_youtube_transcript(youtube_url)
+        if output == 'no transcript':
+            if use_audio_fallback:
+                raise ValueError("There's no valid transcript in this video. Falling back to audio transcription.")
+            else:
+                return ["該影片沒有可用的字幕。"]
 
-    for sentence in output_sentences:
-        if len(current_chunk) + len(sentence) + 1 <= chunk_size:
-            current_chunk += sentence + ' '
-        else:
+        output_sentences = output.split(' ')
+        output_chunks = []
+        current_chunk = ""
+
+        for sentence in output_sentences:
+            if len(current_chunk) + len(sentence) + 1 <= chunk_size:
+                current_chunk += sentence + ' '
+            else:
+                output_chunks.append(current_chunk.strip())
+                current_chunk = sentence + ' '
+
+        if current_chunk:
             output_chunks.append(current_chunk.strip())
-            current_chunk = sentence + ' '
+        return output_chunks
 
-    if current_chunk:
-        output_chunks.append(current_chunk.strip())
-    return output_chunks
+    except Exception as e:
+        print(f"Error: {e}")
+        if not use_audio_fallback:
+            return ["無法獲取字幕，且音頻轉換功能未啟用。"]
+
+
+        # 以下是音頻轉換的代碼，只有在 use_audio_fallback 為 True 時才執行
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': f'/tmp/{str(uuid.uuid4())}.%(ext)s',
+            'ffmpeg_location': '/usr/bin/ffmpeg',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'ffprobe_location': '/usr/bin/ffprobe'
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(youtube_url, download=True)
+            output_path = ydl.prepare_filename(info)
+
+        output_path = output_path.replace(os.path.splitext(output_path)[1], ".mp3")
+        audio_file = AudioSegment.from_file(output_path)
+ 
+
+        chunk_size = 100 * 1000  # 100 秒
+        chunks = [audio_file[i:i+chunk_size] for i in range(0, len(audio_file), chunk_size)]
+
+        transcript = ""
+        for i, chunk in enumerate(chunks):
+            temp_file_path = f"/tmp/{str(uuid.uuid4())}.wav"
+            chunk.export(temp_file_path, format="wav")
+
+            curl_command = [
+                "curl",
+                "https://api.openai.com/v1/audio/transcriptions",
+                "-H", f"Authorization: Bearer {openai_api_key}",
+                "-H", "Content-Type: multipart/form-data",
+                "-F", f"file=@{temp_file_path}",
+                "-F", "model=whisper-1"
+            ]
+
+            result = subprocess.run(curl_command, capture_output=True, text=True)
+
+            try:
+                response_json = json.loads(result.stdout)
+                transcript += response_json["text"]
+            except KeyError as e:
+                print("KeyError:", e)
+                print("Response JSON:", response_json)
+            except json.JSONDecodeError:
+                print("Failed to decode JSON:", result.stdout)
+
+        output_sentences = transcript.split(' ')
+        output_chunks = []
+        current_chunk = ""
+
+        for sentence in output_sentences:
+            if len(current_chunk) + len(sentence) + 1 <= chunk_size:
+                current_chunk += sentence + ' '
+            else:
+                output_chunks.append(current_chunk.strip())
+                current_chunk = sentence + ' '
+
+        if current_chunk:
+            output_chunks.append(current_chunk.strip())
+
+        return output_chunks
 
 def call_gpt_api(prompt, additional_messages=[]):
-    """
-    Call GPT API
-    """
     try:
         response = completion(
-        # response = openai.ChatCompletion.create(
             model=model,
-            messages=additional_messages+[
+            messages=additional_messages + [
                 {"role": "user", "content": prompt}
             ],
-
         )
         message = response.choices[0].message.content.strip()
         return message
@@ -177,114 +229,107 @@ def call_gpt_api(prompt, additional_messages=[]):
         print(f"Error: {e}")
         return ""
 
-def handle_start(update, context):
-    return handle('start', update, context)
+async def handle_start(update, context):
+    return await handle('start', update, context)
 
-def handle_help(update, context):
-    return handle('help', update, context)
+async def handle_help(update, context):
+    return await handle('help', update, context)
 
-def handle_summarize(update, context):
-    return handle('summarize', update, context)
+async def handle_summarize(update, context):
+    return await handle('summarize', update, context)
 
-def handle_file(update, context):
-    return handle('file', update, context)
+async def handle_file(update, context):
+    return await handle('file', update, context)
 
-def handle_button_click(update, context):
-    return handle('button_click', update, context)
+async def handle_button_click(update, context):
+    return await handle('button_click', update, context)
 
-async def handle(command, update, context):
+
+async def handle_yt2audio(update, context):
     chat_id = update.effective_chat.id
-    print("chat_id=", chat_id)
+    user_input = update.message.text.split()
 
-    if allowed_users:
-        user_ids = allowed_users.split(',')
-    # 檢查是否允許使用者或羣組
-        if str(chat_id) not in user_ids and str(chat_id) not in user_ids:
-           print(chat_id, "is not allowed.")
-           await context.bot.send_message(chat_id=chat_id, text="You have no permission to use this bot.")
-           return
+    if len(user_input) < 2:  # 檢查是否有提供 URL
+        await context.bot.send_message(chat_id=chat_id, text="請提供一個 YouTube 影片的 URL。例如：/yt2audio https://www.youtube.com/watch?v=OrUQJg_vFKE")
+        return
 
-#        if str(chat_id) not in user_ids:
-#            print(chat_id, "is not allowed.")
-#            await context.bot.send_message(chat_id=chat_id, text="You have no permission to use this bot.")
-#            return
+    url = user_input[1]  # 取得 YouTube URL
 
     try:
-        if command == 'start':
-            await context.bot.send_message(chat_id=chat_id, text="I can summarize text, URLs, PDFs and YouTube video for you.請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。提醒：我無法聊天，所以不要問我問題，我只能總結文章或影片字幕。")
-        elif command == 'help':
-#            await context.bot.send_message(chat_id=chat_id, text="請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。提醒：我無法聊天，所以不要問我問題，我只能總結文章或影片字幕。 |  Report bugs here 👉 https://github.com/tbdavid2019 ", disable_web_page_preview=True)
-            await context.bot.send_message(
-                chat_id=chat_id, 
-                text=(
-                    "請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，"
-                    "YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。"
-                    "提醒：我無法聊天，所以不要問我問題，我只能總結文章或影片字幕。 | Report bugs here 👉 https://github.com/tbdavid2019"
-                ), 
-                disable_web_page_preview=True
-            )
-        elif command == 'summarize':
-            user_input = update.message.text
-            print("user_input=", user_input)
+        # 使用 yt-dlp 下載音頻
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': f'/tmp/{str(uuid.uuid4())}.%(ext)s',  # 直接使用這個模板來生成文件名
+            'ffmpeg_location': '/usr/bin/ffmpeg',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'ffprobe_location': '/usr/bin/ffprobe'
+        }
 
-            text_array = process_user_input(user_input)
-            print(text_array)
 
-            if not text_array:
-                raise ValueError("No content found to summarize.")
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
 
-            await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
-            summary = summarize(text_array)
-            await context.bot.send_message(chat_id=chat_id, text=f"{summary}", reply_to_message_id=update.message.message_id, reply_markup=get_inline_keyboard_buttons())
-        elif command == 'file':
-            file_path = f"{update.message.document.file_unique_id}.pdf"
-            print("file_path=", file_path)
+        # 不再使用 replace，直接使用下載後的文件
+        output_path = ydl_opts['outtmpl']  # 這裡是帶有 "%(ext)s" 的模板
 
-            file = await context.bot.get_file(update.message.document)
-            await file.download_to_drive(file_path)
+        # 如果你確定已經下載為 .mp3，可以直接用文件路徑
+        output_path = output_path.replace("%(ext)s", "mp3")  # 如果你想保留這行也可以，確保文件是 mp3 格式
 
-            text_array = []
-            reader = PdfReader(file_path)
-            for page_num in range(len(reader.pages)):
-                page = reader.pages[page_num]
-                text = page.extract_text()
-                text_array.append(text)
+        audio_file = AudioSegment.from_file(output_path)        
+ 
 
-            await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
-            summary = summarize(text_array)
-            await context.bot.send_message(chat_id=chat_id, text=f"{summary}", reply_to_message_id=update.message.message_id, reply_markup=get_inline_keyboard_buttons())
 
-            # remove temp file after sending message
-            os.remove(file_path)
-        elif command == 'button_click':
-            original_message_text = update.callback_query.message.text
-            await context.bot.send_chat_action(chat_id=chat_id, action="TYPING")
+            
+        # 傳送音頻檔案給 Telegram user
+        with open(output_path, 'rb') as audio:
+            await context.bot.send_audio(chat_id=chat_id, audio=audio)
 
-            if update.callback_query.data == "explore_similar":
-                keywords = call_gpt_api(f"{original_message_text}\nBased on the content above, give me the top 5 important keywords with commas.", [
-                    {"role": "system", "content": f"You will print keywords only."}
-                ])
+        os.remove(output_path)  # 刪除臨時檔案       
+  
 
-                tasks = [search_results(keywords)]
-                results = await asyncio.gather(*tasks)
-                print(results)
-
-                links = ''
-                for r in results[0]:
-                    links += f"{r['title']}\n{r['href']}\n"
-
-                await context.bot.send_message(chat_id=chat_id, text=links, reply_to_message_id=update.callback_query.message.message_id, disable_web_page_preview=True)
-
-            if update.callback_query.data == "why_it_matters":
-                result = call_gpt_api(f"{original_message_text}\nBased on the content above, tell me why it matters as an expert.", [
-                    {"role": "system", "content": f"You will show the result in {lang}."}
-                ])
-                await context.bot.send_message(chat_id=chat_id, text=result, reply_to_message_id=update.callback_query.message.message_id)
     except Exception as e:
         print(f"Error: {e}")
-        await context.bot.send_message(chat_id=chat_id, text=str(e))
+        await context.bot.send_message(chat_id=chat_id, text="下載或傳送音頻失敗。請檢查輸入的 YouTube URL 是否正確。")
+        
 
 
+async def handle_yt2text(update, context):
+    chat_id = update.effective_chat.id
+    user_input = update.message.text.split()
+
+    if len(user_input) < 2:
+        await context.bot.send_message(chat_id=chat_id, text="請提供一個 YouTube 影片的 URL。例如：/yt2text https://www.youtube.com/watch?v=OrUQJg_vFKE")
+        return
+
+    url = user_input[1]
+
+    try:
+        output_chunks = retrieve_yt_transcript_from_url(url)
+
+        if len(output_chunks) == 1 and (output_chunks[0] == "該影片沒有可用的字幕。" or output_chunks[0] == "無法獲取字幕，且音頻轉換功能未啟用。"):
+            await context.bot.send_message(chat_id=chat_id, text=output_chunks[0])
+            return
+
+        # 處理正常情況的代碼
+        temp_file_path = f"/tmp/{str(uuid.uuid4())}.txt"
+        with open(temp_file_path, 'w', encoding='utf-8') as file:
+            for chunk in output_chunks:
+                file.write(chunk + "\n")
+
+        with open(temp_file_path, 'rb') as txt_file:
+            await context.bot.send_document(chat_id=chat_id, document=txt_file, filename="transcript.txt")
+
+        os.remove(temp_file_path)  # 刪除臨時檔案
+
+    except Exception as e:
+        print(f"Error: {e}")
+        await context.bot.send_message(chat_id=chat_id, text="下載或轉換文本失敗。請檢查輸入的 YouTube URL 是否正確。")
+
+        
 def process_user_input(user_input):
     youtube_pattern = re.compile(r"https?://(www\.|m\.)?(youtube\.com|youtu\.be)/")
     url_pattern = re.compile(r"https?://")
@@ -308,7 +353,6 @@ def get_inline_keyboard_buttons():
 def clear_old_commands(telegram_token):
     url = f"https://api.telegram.org/bot{telegram_token}/deleteMyCommands"
     
-    # 刪除不同範圍的命令
     scopes = ["default", "all_private_chats", "all_group_chats", "all_chat_administrators"]
     
     for scope in scopes:
@@ -319,8 +363,6 @@ def clear_old_commands(telegram_token):
             print(f"Old commands cleared successfully for scope: {scope}")
         else:
             print(f"Failed to clear old commands for scope {scope}: {response.text}")
-        print(f"Failed to clear old commands: {response.text}")
-
 
 def set_my_commands(telegram_token):
     clear_old_commands(telegram_token)  # 清除舊的命令
@@ -328,6 +370,8 @@ def set_my_commands(telegram_token):
     commands = [
         {"command": "start", "description": "確認機器人是否在線"},
         {"command": "help", "description": "顯示此幫助訊息"},
+        {"command": "yt2audio", "description": "下載 YouTube 音頻"},
+        {"command": "yt2text", "description": "將 YouTube 影片轉成文字"},
     ]
     data = {"commands": commands}
     response = requests.post(url, json=data)
@@ -336,12 +380,69 @@ def set_my_commands(telegram_token):
         print("Commands set successfully.")
     else:
         print(f"Failed to set commands: {response.text}")
+        
+async def handle(action, update, context):
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
+
+    if allowed_users and str(user_id) not in allowed_users.split(','):
+        await context.bot.send_message(chat_id=chat_id, text="Sorry, you are not authorized to use this bot.")
+        return
+
+    if action == 'start':
+        await context.bot.send_message(chat_id=chat_id, text="Welcome! I'm here to help you summarize text and YouTube videos.")
+    elif action == 'help':
+        help_text = """
+        Here are the available commands:
+        /start - Start the bot
+        /help - Show this help message
+        /yt2audio <YouTube URL> - Download YouTube audio
+        /yt2text <YouTube URL> - Convert YouTube video to text
+        
+        You can also send me any text or URL to summarize.
+        """
+        await context.bot.send_message(chat_id=chat_id, text=help_text)
+    elif action == 'summarize':
+        user_input = update.message.text
+        text_array = process_user_input(user_input)
+        if text_array:
+            summary = summarize(text_array)
+            await context.bot.send_message(chat_id=chat_id, text=summary, reply_markup=get_inline_keyboard_buttons())
+        else:
+            await context.bot.send_message(chat_id=chat_id, text="Sorry, I couldn't process your input. Please try again.")
+    elif action == 'file':
+        file = await update.message.document.get_file()
+        file_path = f"/tmp/{file.file_id}.pdf"
+        await file.download_to_drive(file_path)
+        
+        reader = PdfReader(file_path)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text() + "\n"
+        
+        os.remove(file_path)
+        
+        text_array = text.split("\n")
+        summary = summarize(text_array)
+        await context.bot.send_message(chat_id=chat_id, text=summary, reply_markup=get_inline_keyboard_buttons())
+    elif action == 'button_click':
+        query = update.callback_query
+        await query.answer()
+        
+        if query.data == 'explore_similar':
+            await context.bot.send_message(chat_id=chat_id, text="Here are some similar topics...")
+        elif query.data == 'why_it_matters':
+            await context.bot.send_message(chat_id=chat_id, text="This topic matters because...")
+
+
 
 def main():
     try:
         application = ApplicationBuilder().token(telegram_token).build()
         start_handler = CommandHandler('start', handle_start)
         help_handler = CommandHandler('help', handle_help)
+        yt2audio_handler = CommandHandler('yt2audio', handle_yt2audio)
+        yt2text_handler = CommandHandler('yt2text', handle_yt2text)
         set_my_commands(telegram_token)
         summarize_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, handle_summarize)
         file_handler = MessageHandler(filters.Document.PDF, handle_file)
@@ -349,6 +450,8 @@ def main():
         application.add_handler(file_handler)
         application.add_handler(start_handler)
         application.add_handler(help_handler)
+        application.add_handler(yt2audio_handler)
+        application.add_handler(yt2text_handler)
         application.add_handler(summarize_handler)
         application.add_handler(button_click_handler)
         application.run_polling()
@@ -357,3 +460,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
