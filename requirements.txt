@@ -21,3 +21,10 @@ python-telegram-bot==21.1.1
 
 # YouTube
 youtube_transcript_api==0.6.2
+
+# yt-dlp for downloading YouTube audio
+yt-dlp==2024.08.06
+
+# pydub for audio processing
+pydub==0.25.1
+
