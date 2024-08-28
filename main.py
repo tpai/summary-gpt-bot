@@ -250,7 +250,7 @@ async def handle_yt2audio(update, context):
     user_input = update.message.text.split()
 
     if len(user_input) < 2:  # 檢查是否有提供 URL
-        await context.bot.send_message(chat_id=chat_id, text="請提供一個 YouTube 影片的 URL。例如：/yt2audio https://www.youtube.com/watch?v=OrUQJg_vFKE")
+        await context.bot.send_message(chat_id=chat_id, text="請提供一個 YouTube 影片的 URL。例如：/yt2audio Youtube的URL")
         return
 
     url = user_input[1]  # 取得 YouTube URL
@@ -302,7 +302,7 @@ async def handle_yt2text(update, context):
     user_input = update.message.text.split()
 
     if len(user_input) < 2:
-        await context.bot.send_message(chat_id=chat_id, text="請提供一個 YouTube 影片的 URL。例如：/yt2text https://www.youtube.com/watch?v=OrUQJg_vFKE")
+        await context.bot.send_message(chat_id=chat_id, text="請提供一個 YouTube 影片的 URL。例如：/yt2text Youtube的URL")
         return
 
     url = user_input[1]
@@ -390,9 +390,10 @@ async def handle(action, update, context):
         return
 
     if action == 'start':
-        await context.bot.send_message(chat_id=chat_id, text="Welcome! I'm here to help you summarize text and YouTube videos.")
+        await context.bot.send_message(chat_id=chat_id, text="我是江家機器人之一。版本20240828。 請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。提醒：我無法聊天，所以不要問我問題，我只能總結文章或影片字幕。 I'm here to help you summarize text and YouTube videos.")
     elif action == 'help':
         help_text = """
+        I can summarize text, URLs, PDFs and YouTube video for you.請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。提醒：我無法聊天，所以不要問我問題，我只能總結文章或影片字幕。        
         Here are the available commands:
         /start - Start the bot
         /help - Show this help message
