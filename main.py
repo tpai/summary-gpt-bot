@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, filters, ApplicationBuilder
-from youtube_transcript_api import YouTubeTranscriptApi
+
 
 # 從環境變數中取得 OpenAI API Key
 openai_api_key = os.environ.get("OPENAI_API_KEY", "YOUR_API_KEY")
@@ -25,6 +25,8 @@ ddg_region = os.environ.get("DDG_REGION", "wt-wt")
 chunk_size = int(os.environ.get("CHUNK_SIZE", 2100))
 allowed_users = os.environ.get("ALLOWED_USERS", "")
 use_audio_fallback = int(os.environ.get("USE_AUDIO_FALLBACK", "0"))
+# 添加 GROQ API Key
+groq_api_key = os.environ.get("GROQ_API_KEY", "YOUR_GROQ_API_KEY")
 
 def split_user_input(text):
     paragraphs = text.split('\n')
@@ -106,51 +108,88 @@ def summarize(text_array):
         return "Unknown error! Please contact the owner. ok@vip.david888.com"
 
 def extract_youtube_transcript(youtube_url):
+    ydl_opts = {
+        'writesubtitles': True,
+        'writeautomaticsub': True,
+        'skip_download': True,
+        'subtitleslangs': ['zh-Hant', 'zh-Hans', 'zh-TW' , 'zh', 'en'],  # 優先順序：繁體中文，簡體中文，中文，英文
+        'outtmpl': '/tmp/%(id)s.%(ext)s',
+    }
+
     try:
-        video_id_match = re.search(r"(?<=v=)[^&]+|(?<=youtu.be/)[^?|\n]+", youtube_url)
-        video_id = video_id_match.group(0) if video_id_match else None
-        if video_id is None:
-            return "no transcript"
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        available_languages = [transcript.language_code for transcript in transcript_list]
-        transcript = transcript_list.find_transcript(available_languages)
-        transcript_text = ' '.join([item['text'] for item in transcript.fetch()])
-        return transcript_text
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(youtube_url, download=False)
+            if 'subtitles' in info or 'automatic_captions' in info:
+                ydl.download([youtube_url])
+                video_id = info['id']
+                
+                subtitle_content = None
+                for lang in ['zh-Hant', 'zh-Hans', 'zh', 'en']:
+                    subtitle_file = f"/tmp/{video_id}.{lang}.vtt"
+                    if os.path.exists(subtitle_file):
+                        with open(subtitle_file, 'r', encoding='utf-8') as file:
+                            subtitle_content = file.read()
+                        os.remove(subtitle_file)
+                        print(f"Found and using {lang} subtitle.")
+                        break  # 找到第一個可用的字幕就停止
+
+                # 刪除所有剩餘的字幕文件
+                for file in os.listdir('/tmp'):
+                    if file.startswith(video_id) and file.endswith('.vtt'):
+                        os.remove(f"/tmp/{file}")
+                        print(f"Removed unused subtitle file: {file}")
+
+                if subtitle_content:
+                    return subtitle_content
+                else:
+                    print("No suitable subtitles found in specified languages.")
+                    return "no transcript"
+            else:
+                print("No subtitles or automatic captions available for this video.")
+                return "no transcript"
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error in extract_youtube_transcript: {e}")
         return "no transcript"
+
+
 
 def retrieve_yt_transcript_from_url(youtube_url):
     try:
-        output = extract_youtube_transcript(youtube_url)
-        if output == 'no transcript':
+        subtitle_content = extract_youtube_transcript(youtube_url)
+        if subtitle_content == "no transcript":
             if use_audio_fallback:
-                raise ValueError("There's no valid transcript in this video. Falling back to audio transcription.")
+                print("No usable subtitles found. Falling back to audio transcription.")
+                return audio_transcription(youtube_url)
             else:
-                return ["該影片沒有可用的字幕。"]
+                return ["該影片沒有可用的字幕，且音頻轉換功能未啟用。"]
 
-        output_sentences = output.split(' ')
+        # 清理字幕內容
+        cleaned_content = re.sub(r'WEBVTT\n\n', '', subtitle_content)
+        cleaned_content = re.sub(r'\d+:\d+:\d+\.\d+ --> \d+:\d+:\d+\.\d+\n', '', cleaned_content)
+        cleaned_content = re.sub(r'\n\n', ' ', cleaned_content)
+
+        # 將清理後的內容分割成chunks
         output_chunks = []
         current_chunk = ""
-
-        for sentence in output_sentences:
-            if len(current_chunk) + len(sentence) + 1 <= chunk_size:
-                current_chunk += sentence + ' '
+        for word in cleaned_content.split():
+            if len(current_chunk) + len(word) + 1 <= chunk_size:
+                current_chunk += word + ' '
             else:
                 output_chunks.append(current_chunk.strip())
-                current_chunk = sentence + ' '
+                current_chunk = word + ' '
 
         if current_chunk:
             output_chunks.append(current_chunk.strip())
+
         return output_chunks
 
     except Exception as e:
-        print(f"Error: {e}")
-        if not use_audio_fallback:
-            return ["無法獲取字幕，且音頻轉換功能未啟用。"]
-
-
-        # 以下是音頻轉換的代碼，只有在 use_audio_fallback 為 True 時才執行
+        print(f"Error in retrieve_yt_transcript_from_url: {e}")
+        return ["無法獲取字幕或進行音頻轉換。"]
+    
+def audio_transcription(youtube_url):
+    try:
+        # 使用 yt-dlp 下載音頻
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': f'/tmp/{str(uuid.uuid4())}.%(ext)s',
@@ -169,7 +208,6 @@ def retrieve_yt_transcript_from_url(youtube_url):
 
         output_path = output_path.replace(os.path.splitext(output_path)[1], ".mp3")
         audio_file = AudioSegment.from_file(output_path)
- 
 
         chunk_size = 100 * 1000  # 100 秒
         chunks = [audio_file[i:i+chunk_size] for i in range(0, len(audio_file), chunk_size)]
@@ -181,11 +219,11 @@ def retrieve_yt_transcript_from_url(youtube_url):
 
             curl_command = [
                 "curl",
-                "https://api.openai.com/v1/audio/transcriptions",
-                "-H", f"Authorization: Bearer {openai_api_key}",
+                "https://api.groq.com/openai/v1/audio/transcriptions",
+                "-H", f"Authorization: Bearer {os.environ.get('GROQ_API_KEY', 'YOUR_GROQ_API_KEY')}",
                 "-H", "Content-Type: multipart/form-data",
                 "-F", f"file=@{temp_file_path}",
-                "-F", "model=whisper-1"
+                "-F", "model=whisper-large-v3"
             ]
 
             result = subprocess.run(curl_command, capture_output=True, text=True)
@@ -199,21 +237,30 @@ def retrieve_yt_transcript_from_url(youtube_url):
             except json.JSONDecodeError:
                 print("Failed to decode JSON:", result.stdout)
 
-        output_sentences = transcript.split(' ')
+            os.remove(temp_file_path)  # 删除临时音频文件
+
+        os.remove(output_path)  # 删除下载的 mp3 文件
+
+        # 将转录文本分割成 chunks
+        output_sentences = transcript.split()
         output_chunks = []
         current_chunk = ""
 
-        for sentence in output_sentences:
-            if len(current_chunk) + len(sentence) + 1 <= chunk_size:
-                current_chunk += sentence + ' '
+        for word in output_sentences:
+            if len(current_chunk) + len(word) + 1 <= chunk_size:
+                current_chunk += word + ' '
             else:
                 output_chunks.append(current_chunk.strip())
-                current_chunk = sentence + ' '
+                current_chunk = word + ' '
 
         if current_chunk:
             output_chunks.append(current_chunk.strip())
 
         return output_chunks
+
+    except Exception as e:
+        print(f"Error in audio_transcription: {e}")
+        return ["音頻轉錄失敗。"]    
 
 def call_gpt_api(prompt, additional_messages=[]):
     try:
