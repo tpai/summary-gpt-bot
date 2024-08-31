@@ -1,8 +1,14 @@
 # Summary GPT Bot
-
+- 新增 whisper 功能，調用 groq whisper api  (目前 groq api 免費！)
+- 若字幕沒有找到，會轉向用聽力辨識方式產生字幕
+- USE_AUDIO_FALLBACK=1  //要不要開放 whisper 1是; 0不要
+- GROQ_API_KEY 準備 groq api key
+  
 <img width="575" alt="image" src="https://github.com/user-attachments/assets/7465b142-7fa1-4889-9f98-d74194ca72e3">
 
 An AI-powered text summarization Telegram bot that generates concise summaries of text, URLs, PDFs and YouTube videos.
+
+
 
 ## Features
 
