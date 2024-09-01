@@ -7,7 +7,6 @@ import re
 import trafilatura
 import uuid
 import requests
-from litellm import completion
 from duckduckgo_search import AsyncDDGS
 from PyPDF2 import PdfReader
 from concurrent.futures import ThreadPoolExecutor
@@ -27,6 +26,7 @@ allowed_users = os.environ.get("ALLOWED_USERS", "")
 use_audio_fallback = int(os.environ.get("USE_AUDIO_FALLBACK", "0"))
 # 添加 GROQ API Key
 groq_api_key = os.environ.get("GROQ_API_KEY", "YOUR_GROQ_API_KEY")
+base_url = os.environ.get("LLM_BASE_URL", "https://api.openai.com/v1")
 
 def split_user_input(text):
     paragraphs = text.split('\n')
@@ -264,19 +264,28 @@ def audio_transcription(youtube_url):
         print(f"Error in audio_transcription: {e}")
         return ["音頻轉錄失敗。"]    
 
+
 def call_gpt_api(prompt, additional_messages=[]):
+    headers = {
+        "Authorization": f"Bearer {openai_api_key}",
+        "Content-Type": "application/json",
+    }
+    data = {
+        "model": model,
+        "messages": additional_messages + [
+            {"role": "user", "content": prompt}
+        ],
+    }
+
     try:
-        response = completion(
-            model=model,
-            messages=additional_messages + [
-                {"role": "user", "content": prompt}
-            ],
-        )
-        message = response.choices[0].message.content.strip()
+        response = requests.post(f"{base_url}/chat/completions", headers=headers, json=data)
+        response.raise_for_status()  # 如果返回非 200 的狀態碼會拋出異常
+        message = response.json()["choices"][0]["message"]["content"].strip()
         return message
-    except Exception as e:
-        print(f"Error: {e}")
+    except requests.exceptions.RequestException as e:
+        print(f"Request error: {e}")
         return ""
+
 
 async def handle_start(update, context):
     return await handle('start', update, context)
