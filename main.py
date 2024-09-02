@@ -239,11 +239,11 @@ def audio_transcription(youtube_url):
             except json.JSONDecodeError:
                 print("Failed to decode JSON:", result.stdout)
 
-            os.remove(temp_file_path)  # 删除临时音频文件
+            os.remove(temp_file_path)  # 刪除臨時音訊文件
 
-        os.remove(output_path)  # 删除下载的 mp3 文件
+        os.remove(output_path)  # 刪除下載的 mp3 文件
 
-        # 将转录文本分割成 chunks
+        # 將轉錄文本分割成 chunks
         output_sentences = transcript.split()
         output_chunks = []
         current_chunk = ""
@@ -299,9 +299,11 @@ async def handle_summarize(update, context):
 async def handle_file(update, context):
     return await handle('file', update, context)
 
+# async def handle_button_click(update, context):
+#     return await handle('button_click', update, context)
 async def handle_button_click(update, context):
-    return await handle('button_click', update, context)
-
+    query = update.callback_query
+    await query.answer()
 
 async def handle_yt2audio(update, context):
     chat_id = update.effective_chat.id
@@ -401,10 +403,12 @@ def process_user_input(user_input):
 
     return text_array
 
-def get_inline_keyboard_buttons():
+def get_inline_keyboard_buttons(summary_text):
+    encoded_text = requests.utils.quote(summary_text)
+    twitter_url = f"https://twitter.com/intent/tweet?text={encoded_text}"
+
     keyboard = [
-        [InlineKeyboardButton("Explore Similar", callback_data="explore_similar")],
-        [InlineKeyboardButton("Why It Matters", callback_data="why_it_matters")],
+        [InlineKeyboardButton("Share to Twitter", url=twitter_url)],
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -466,7 +470,10 @@ async def handle(action, update, context):
         text_array = process_user_input(user_input)
         if text_array:
             summary = summarize(text_array)
-            await context.bot.send_message(chat_id=chat_id, text=summary, reply_markup=get_inline_keyboard_buttons())
+            original_url = user_input  # 假設用戶輸入的是URL
+            summary_with_original = f"{summary}\n\n[Original]({original_url})"  # 將原始URL附加到總結後
+            await context.bot.send_message(chat_id=chat_id, text=summary_with_original, reply_markup=get_inline_keyboard_buttons(summary_with_original))
+            # await context.bot.send_message(chat_id=chat_id, text=summary, reply_markup=get_inline_keyboard_buttons(summary))
         else:
             await context.bot.send_message(chat_id=chat_id, text="Sorry, I couldn't process your input. Please try again.")
     elif action == 'file':
@@ -483,7 +490,7 @@ async def handle(action, update, context):
         
         text_array = text.split("\n")
         summary = summarize(text_array)
-        await context.bot.send_message(chat_id=chat_id, text=summary, reply_markup=get_inline_keyboard_buttons())
+        await context.bot.send_message(chat_id=chat_id, text=summary, reply_markup=get_inline_keyboard_buttons(summary))
     elif action == 'button_click':
         query = update.callback_query
         await query.answer()
@@ -492,8 +499,7 @@ async def handle(action, update, context):
             await context.bot.send_message(chat_id=chat_id, text="Here are some similar topics...")
         elif query.data == 'why_it_matters':
             await context.bot.send_message(chat_id=chat_id, text="This topic matters because...")
-
-
+            
 
 def main():
     try:
@@ -519,4 +525,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
