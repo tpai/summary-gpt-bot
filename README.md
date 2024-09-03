@@ -1,8 +1,8 @@
 # Summary GPT Bot / An AI-powered text summarization Telegram bot that generates concise summaries of text, URLs, PDFs and YouTube videos.
 - 新增 whisper 功能，調用 groq whisper api  (目前 groq api 免費！)
 - 若字幕沒有找到，會轉向用聽力辨識方式產生字幕
-- USE_AUDIO_FALLBACK=1  //要不要開放 whisper 1是; 0不要
-- GROQ_API_KEY 準備 groq api key
+- USE_AUDIO_FALLBACK=1  //要不要開放無Youtube字幕的處理？ whisper 1是; 0不要
+- GROQ_API_KEY 先準備 groq api key
   
 <img width="575" alt="image" src="https://github.com/user-attachments/assets/7465b142-7fa1-4889-9f98-d74194ca72e3">
 <img width="600" alt="image" src="https://github.com/user-attachments/assets/c69253fc-24ff-4378-9df0-eb14821cabdd">
@@ -47,9 +47,11 @@ docker run -d \
     --name summary-gpt-bot \
     --restart unless-stopped \
     -e chunk_size=6000 \
-    -e LLM_MODEL=gpt-4o-mini \
-    -e USE_AUDIO_FALLBACK=1 \
-    -e OPENAI_API_KEY=<your-openai-api-key> \
+    -e LLM_BASE_URL=https://api.groq.com/openai/v1<也可以換成 openai 的 baseURL> \
+    -e LLM_MODEL=llama-3.1-70b-versatile<也可以換成gpt-4o等其他模型>  \ 
+    -e OPENAI_API_KEY=<your-openai-api-key 或 你的groq key> \
+    -e USE_AUDIO_FALLBACK=1<要不要啟動無字幕Youtube影片處理耗用token 這裡改成免費的groq Whisper API）> \
+    -e GROQ_API_KEY=<你的Groq API KEY> \
     -e TELEGRAM_TOKEN=<your-telegram-bot-token> \
     -e ALLOWED_USERS=<telegram-user-id-1>,<telegram-user-id-2>,... \
     tbdavid2019/telegram-bot-summary:latest
