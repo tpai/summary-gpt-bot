@@ -116,23 +116,26 @@ docker run -d \
     --name summary-gpt-bot \
     --restart unless-stopped \
     -e chunk_size=6000 \
-    -e LLM_MODEL=gpt-4o-mini \
-    -e USE_AUDIO_FALLBACK=1 \
-    -e OPENAI_API_KEY=<your-openai-api-key> \
+    -e LLM_BASE_URL=https://api.groq.com/openai/v1<也可以換成 openai 的 baseURL> \
+    -e LLM_MODEL=llama-3.1-70b-versatile<也可以換成gpt-4o等其他模型>  \ 
+    -e OPENAI_API_KEY=<your-openai-api-key 或 你的groq key> \
+    -e USE_AUDIO_FALLBACK=1<要不要啟動無字幕Youtube影片處理耗用token 這裡改成免費的groq Whisper API）> \
+    -e GROQ_API_KEY=<你的Groq API KEY> \
     -e TELEGRAM_TOKEN=<your-telegram-bot-token> \
     -e ALLOWED_USERS=<telegram-user-id-1>,<telegram-user-id-2>,... \
     tbdavid2019/telegram-bot-summary:latest
 ```
 
 
+
 LLM Variables
 
 | Environment Variable | Description |
 |----------------------|-------------|
-| AZURE_API_BASE       | API URL base for AZURE OpenAI API |
-| AZURE_API_KEY        | API key for AZURE OpenAI API |
-| AZURE_API_VERSION    | API version for AZURE OpenAI API |
+| LLM_BASE_URL       | LLM BASEURL |
 | OPENAI_API_KEY       | API key for OpenAI API |
+| GROQ_API_KEY       | API key for GROQ API |
+
 
 Bot Variables
 
@@ -144,4 +147,5 @@ Bot Variables
 | TS_LANG              | Language of the text to be summarized (default: Taiwanese Mandarin) |
 | DDG_REGION           | The region of the duckduckgo search (default: wt-wt) 👉[Regions](https://github.com/deedy5/duckduckgo_search#regions) |
 | ALLOWED_USERS        | A list of user IDs allowed to use. Asking @myidbot for Telegram ID (optional) |
+| USE_AUDIO_FALLBACK | 啟用Youtube無字幕影片聽寫處理 |
 
