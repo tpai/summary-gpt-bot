@@ -8,7 +8,9 @@
 <img width="600" alt="image" src="https://github.com/user-attachments/assets/c69253fc-24ff-4378-9df0-eb14821cabdd">
 
 
+## 示範帳號
 
+https://t.me/quantaar_bot
 
 
 ## Features
