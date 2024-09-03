@@ -28,6 +28,9 @@ use_audio_fallback = int(os.environ.get("USE_AUDIO_FALLBACK", "0"))
 groq_api_key = os.environ.get("GROQ_API_KEY", "YOUR_GROQ_API_KEY")
 base_url = os.environ.get("LLM_BASE_URL", "https://api.openai.com/v1")
 
+
+
+
 def split_user_input(text):
     paragraphs = text.split('\n')
     paragraphs = [paragraph.strip() for paragraph in paragraphs if paragraph.strip()]
@@ -70,7 +73,7 @@ def summarize(text_array):
 
         summaries = []
         system_messages = [
-            {"role": "system", "content": "將以下原文總結為五個部分：1.總結 (Overall Summary)。2.觀點 (Viewpoints)。3.摘要 (Abstract)： 創建6到10個帶有適當表情符號的重點摘要。4.關鍵字 (Key Words)。 5.一個讓十二歲青少年可以看得動懂的段落。請確保每個部分只生成一次，且內容不重複。確保生成的文字都是{lang}為主"}
+            {"role": "system", "content": "將以下原文總結為五個部分：1.總結 (Overall Summary)：約100字~300字概括。2.觀點 (Viewpoints):內容中的看法與你的看法。3.摘要 (Abstract)： 創建6到10個帶有適當表情符號的重點摘要。4.關鍵字 (Key Words)：列出內容中重點關鍵字。 5.容易懂(Easy Know)：一個讓十二歲青少年可以看得動懂的段落。確保生成的文字都是{lang}為主"}
         ]
 
         with ThreadPoolExecutor() as executor:
@@ -98,9 +101,9 @@ def summarize(text_array):
 
         output = "\n\n".join([
             f" ⇣ \n\n{final_summary['overall_summary']}",
-            f" 𒐤 觀點 (Viewpoints) 𒐤\n{final_summary['viewpoints']}",
-            f" 𒐤 摘要 (Abstract) 𒐤\n{final_summary['abstract']}",
-            f" 𒐤 關鍵字 (Key Words) 𒐤\n{final_summary['keywords']}",
+            f" ✔︎ 觀點 (Viewpoints) \n{final_summary['viewpoints']}",
+            f" ✔︎ 摘要 (Abstract) \n{final_summary['abstract']}",
+            f" ✔︎ 關鍵字 (Key Words) 和 其他 \n{final_summary['keywords']}",
             f" ⇡ \n",
             f" ✡ 謝謝使用 Oli 小濃縮 (Summary) ✡ ",
         ])
@@ -472,7 +475,8 @@ async def handle(action, update, context):
             summary = summarize(text_array)
             original_url = user_input  # 假設用戶輸入的是URL
             summary_with_original = f"{summary}\n\n[Original]({original_url})"  # 將原始URL附加到總結後
-            await context.bot.send_message(chat_id=chat_id, text=summary_with_original, reply_markup=get_inline_keyboard_buttons(summary_with_original))
+            await context.bot.send_message(chat_id=chat_id, text=summary_with_original, parse_mode='Markdown', reply_markup=get_inline_keyboard_buttons(summary_with_original))
+            # await context.bot.send_message(chat_id=chat_id, text=summary_with_original, reply_markup=get_inline_keyboard_buttons(summary_with_original))
             # await context.bot.send_message(chat_id=chat_id, text=summary, reply_markup=get_inline_keyboard_buttons(summary))
         else:
             await context.bot.send_message(chat_id=chat_id, text="Sorry, I couldn't process your input. Please try again.")
