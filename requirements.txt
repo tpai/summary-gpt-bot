@@ -28,3 +28,5 @@ yt-dlp==2024.08.06
 # pydub for audio processing
 pydub==0.25.1
 
+beautifulsoup4==4.12.3
+lxml==4.9.4

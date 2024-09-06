@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, filters, ApplicationBuilder
+from bs4 import BeautifulSoup
 
 
 # 從環境變數中取得 OpenAI API Key
@@ -37,16 +38,38 @@ def split_user_input(text):
     return paragraphs
 
 def scrape_text_from_url(url):
+    """
+    使用 trafilatura 抓取文章內容，並使用 BeautifulSoup 抓取頁面標題。
+    """
     try:
+        # 使用 trafilatura 抓取網頁內容
         downloaded = trafilatura.fetch_url(url)
+        if downloaded is None:
+            return [], "", "無法下載該網頁的內容。"  # 保持三個返回值
+        
+        # 使用 BeautifulSoup 解析網頁來提取標題
+        soup = BeautifulSoup(downloaded, "lxml")
+        title = soup.title.string if soup.title else "無法提取標題"
+        
+        # 使用 trafilatura 提取網頁正文
         text = trafilatura.extract(downloaded, include_formatting=True)
-        if text is None:
-            return []
+        if text is None or text.strip() == "":
+            return [], title, "提取的內容為空，可能該網站不支持解析。"  # 返回標題和錯誤信息
+        
+        # 將提取的內容按照換行符進行分段
         text_chunks = text.split("\n")
-        article_content = [text for text in text_chunks if text]
-        return article_content
+        
+        # 過濾掉空白行，並將每段去掉首尾空格
+        article_content = [chunk.strip() for chunk in text_chunks if chunk.strip()]
+        
+        if not article_content:
+            return [], title, "提取的內容為空。"  # 保持一致的返回值結構
+        
+        return article_content, title, None  # 返回內容、標題和無錯誤
+
     except Exception as e:
         print(f"Error: {e}")
+        return [], "", f"抓取過程中發生錯誤：{str(e)}"  # 保持一致的返回值結構
 
 async def search_results(keywords):
     print(keywords, ddg_region)
@@ -297,7 +320,8 @@ async def handle_help(update, context):
     return await handle('help', update, context)
 
 async def handle_summarize(update, context):
-    return await handle('summarize', update, context)
+     return await handle('summarize', update, context)
+
 
 async def handle_file(update, context):
     return await handle('file', update, context)
@@ -455,7 +479,7 @@ async def handle(action, update, context):
         return
 
     if action == 'start':
-        await context.bot.send_message(chat_id=chat_id, text="我是江家機器人之一。版本20240828。 請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。提醒：我無法聊天，所以不要問我問題，我只能總結文章或影片字幕。 I'm here to help you summarize text and YouTube videos.")
+        await context.bot.send_message(chat_id=chat_id, text="我是江家機器人之一。版本20240907。 請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。提醒：我無法聊天，所以不要問我問題，我只能總結文章或影片字幕。 I'm here to help you summarize text and YouTube videos.")
     elif action == 'help':
         help_text = """
         I can summarize text, URLs, PDFs and YouTube video for you.請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。提醒：我無法聊天，所以不要問我問題，我只能總結文章或影片字幕。        
@@ -470,14 +494,37 @@ async def handle(action, update, context):
         await context.bot.send_message(chat_id=chat_id, text=help_text)
     elif action == 'summarize':
         user_input = update.message.text
-        text_array = process_user_input(user_input)
+        
+        # 从输入的 URL 获取文本内容和标题
+        text_array, title, error = scrape_text_from_url(user_input)
+
+        if error:
+            await context.bot.send_message(chat_id=chat_id, text=error)
+            return
+
         if text_array:
+            # 调用 summarize 生成摘要
             summary = summarize(text_array)
-            original_url = user_input  # 假設用戶輸入的是URL
-            summary_with_original = f"{summary}\n\n[Original]({original_url})"  # 將原始URL附加到總結後
+
+            # 将标题附加到摘要的前方
+            summary_with_title = f"📌 {title}\n\n{summary}"
+            original_url = user_input  # 假设用戶输入的是URL
+
+            # 将标题、摘要和原始URL附加在一起
+            summary_with_original = f"{summary_with_title}\n\n ▶ {original_url}"
+
+            # 发送包含标题、摘要和原始URL的消息
             await context.bot.send_message(chat_id=chat_id, text=summary_with_original, parse_mode='Markdown', reply_markup=get_inline_keyboard_buttons(summary_with_original))
-            # await context.bot.send_message(chat_id=chat_id, text=summary_with_original, reply_markup=get_inline_keyboard_buttons(summary_with_original))
-            # await context.bot.send_message(chat_id=chat_id, text=summary, reply_markup=get_inline_keyboard_buttons(summary))
+
+
+            # # 将标题附加到摘要的前方
+            # summary_with_title = f"📌 {title}\n\n{summary}"
+            # original_url = user_input  # 假设用戶输入的是URL
+            # summary_with_original = f"\nOriginal  {original_url}"  # 将原始URL附加到总结后
+            # summary_with_original = f"{summary_with_title}\n\n[Original] {original_url}"  # 将原始URL附加到总结后
+
+            # # 发送摘要和原始 URL
+            # await context.bot.send_message(chat_id=chat_id, text=summary_with_original, parse_mode='Markdown', reply_markup=get_inline_keyboard_buttons(summary_with_original))
         else:
             await context.bot.send_message(chat_id=chat_id, text="Sorry, I couldn't process your input. Please try again.")
     elif action == 'file':
