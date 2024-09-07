@@ -14,6 +14,7 @@ from tqdm import tqdm
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, filters, ApplicationBuilder
 from bs4 import BeautifulSoup
+from telegram.helpers import escape_markdown
 
 
 # 從環境變數中取得 OpenAI API Key
@@ -510,10 +511,16 @@ async def handle(action, update, context):
             original_url = user_input  # 假設用戶輸入的是URL
             summary_with_original = f"{summary}\n\n▶ {original_url}"  # 將原始URL附加到總結後
 
+            # 使用 escape_markdown 對 summary_with_original 進行轉義
+            summary_with_original_escaped = escape_markdown(summary_with_original, version=2)
+
             # 发送包含标题、摘要和原始URL的消息
-            await context.bot.send_message(chat_id=chat_id, text=summary_with_original, parse_mode='Markdown', reply_markup=get_inline_keyboard_buttons(summary_with_original))
-        else:
-            await context.bot.send_message(chat_id=chat_id, text="Sorry, I couldn't process your input. Please try again.")
+            await context.bot.send_message(
+                chat_id=chat_id, 
+                text=summary_with_original_escaped, 
+                parse_mode='MarkdownV2',  # 確保使用 MarkdownV2
+                reply_markup=get_inline_keyboard_buttons(summary_with_original_escaped)
+            )
     elif action == 'file':
         file = await update.message.document.get_file()
         file_path = f"/tmp/{file.file_id}.pdf"
