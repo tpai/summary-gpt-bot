@@ -418,14 +418,22 @@ async def handle_yt2text(update, context):
 
         
 def process_user_input(user_input):
+    """
+    處理用戶輸入的文字或網址，並返回適當的文本內容數組
+    """
     youtube_pattern = re.compile(r"https?://(www\.|m\.)?(youtube\.com|youtu\.be)/")
     url_pattern = re.compile(r"https?://")
 
     if youtube_pattern.match(user_input):
+        # 如果是 YouTube 的網址，調用 YouTube 字幕處理函數
         text_array = retrieve_yt_transcript_from_url(user_input)
     elif url_pattern.match(user_input):
-        text_array = scrape_text_from_url(user_input)
+        # 如果是一般的 URL，調用網頁抓取函數
+        text_array, title, error = scrape_text_from_url(user_input)
+        if error:
+            return [], title, error
     else:
+        # 處理一般的文字輸入
         text_array = split_user_input(user_input)
 
     return text_array
@@ -479,10 +487,10 @@ async def handle(action, update, context):
         return
 
     if action == 'start':
-        await context.bot.send_message(chat_id=chat_id, text="我是江家機器人之一。版本20240907。 請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。提醒：我無法聊天，所以不要問我問題，我只能總結文章或影片字幕。 I'm here to help you summarize text and YouTube videos.")
+        await context.bot.send_message(chat_id=chat_id, text="我是江家機器人之一。版本20240907。請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。提醒：我無法聊天，所以不要問我問題，我只能總結文章或影片字幕。")
     elif action == 'help':
         help_text = """
-        I can summarize text, URLs, PDFs and YouTube video for you.請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。提醒：我無法聊天，所以不要問我問題，我只能總結文章或影片字幕。        
+        I can summarize text, URLs, PDFs and YouTube video for you. 請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。
         Here are the available commands:
         /start - Start the bot
         /help - Show this help message
@@ -494,37 +502,16 @@ async def handle(action, update, context):
         await context.bot.send_message(chat_id=chat_id, text=help_text)
     elif action == 'summarize':
         user_input = update.message.text
-        
-        # 从输入的 URL 获取文本内容和标题
-        text_array, title, error = scrape_text_from_url(user_input)
-
-        if error:
-            await context.bot.send_message(chat_id=chat_id, text=error)
-            return
+        text_array = process_user_input(user_input)  # 使用 process_user_input 來處理輸入
 
         if text_array:
-            # 调用 summarize 生成摘要
             summary = summarize(text_array)
 
-            # 将标题附加到摘要的前方
-            summary_with_title = f"📌 {title}\n\n{summary}"
-            original_url = user_input  # 假设用戶输入的是URL
-
-            # 将标题、摘要和原始URL附加在一起
-            summary_with_original = f"{summary_with_title}\n\n ▶ {original_url}"
+            original_url = user_input  # 假設用戶輸入的是URL
+            summary_with_original = f"{summary}\n\n▶ {original_url}"  # 將原始URL附加到總結後
 
             # 发送包含标题、摘要和原始URL的消息
             await context.bot.send_message(chat_id=chat_id, text=summary_with_original, parse_mode='Markdown', reply_markup=get_inline_keyboard_buttons(summary_with_original))
-
-
-            # # 将标题附加到摘要的前方
-            # summary_with_title = f"📌 {title}\n\n{summary}"
-            # original_url = user_input  # 假设用戶输入的是URL
-            # summary_with_original = f"\nOriginal  {original_url}"  # 将原始URL附加到总结后
-            # summary_with_original = f"{summary_with_title}\n\n[Original] {original_url}"  # 将原始URL附加到总结后
-
-            # # 发送摘要和原始 URL
-            # await context.bot.send_message(chat_id=chat_id, text=summary_with_original, parse_mode='Markdown', reply_markup=get_inline_keyboard_buttons(summary_with_original))
         else:
             await context.bot.send_message(chat_id=chat_id, text="Sorry, I couldn't process your input. Please try again.")
     elif action == 'file':
@@ -549,8 +536,7 @@ async def handle(action, update, context):
         if query.data == 'explore_similar':
             await context.bot.send_message(chat_id=chat_id, text="Here are some similar topics...")
         elif query.data == 'why_it_matters':
-            await context.bot.send_message(chat_id=chat_id, text="This topic matters because...")
-            
+            await context.bot.send_message(chat_id=chat_id, text="This topic matters because...")           
 
 def main():
     try:
