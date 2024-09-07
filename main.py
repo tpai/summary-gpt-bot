@@ -49,13 +49,13 @@ def scrape_text_from_url(url):
             return [], "", "無法下載該網頁的內容。"  # 保持三個返回值
         
         # 使用 BeautifulSoup 解析網頁來提取標題
-        soup = BeautifulSoup(downloaded, "lxml")
-        title = soup.title.string if soup.title else "無法提取標題"
+        #soup = BeautifulSoup(downloaded, "lxml")
+        #title = soup.title.string if soup.title else "無法提取標題"
         
         # 使用 trafilatura 提取網頁正文
         text = trafilatura.extract(downloaded, include_formatting=True)
         if text is None or text.strip() == "":
-            return [], title, "提取的內容為空，可能該網站不支持解析。"  # 返回標題和錯誤信息
+            return [],  "提取的內容為空，可能該網站不支持解析。"  # 返回標題和錯誤信息
         
         # 將提取的內容按照換行符進行分段
         text_chunks = text.split("\n")
@@ -64,13 +64,13 @@ def scrape_text_from_url(url):
         article_content = [chunk.strip() for chunk in text_chunks if chunk.strip()]
         
         if not article_content:
-            return [], title, "提取的內容為空。"  # 保持一致的返回值結構
+            return [],  "提取的內容為空。"  # 保持一致的返回值結構
         
-        return article_content, title, None  # 返回內容、標題和無錯誤
+        return article_content,  None  # 返回內容、標題和無錯誤
 
     except Exception as e:
         print(f"Error: {e}")
-        return [], "", f"抓取過程中發生錯誤：{str(e)}"  # 保持一致的返回值結構
+        return [],  f"抓取過程中發生錯誤：{str(e)}"  # 保持一致的返回值結構
 
 async def search_results(keywords):
     print(keywords, ddg_region)
@@ -417,6 +417,26 @@ async def handle_yt2text(update, context):
         print(f"Error: {e}")
         await context.bot.send_message(chat_id=chat_id, text="下載或轉換文本失敗。請檢查輸入的 YouTube URL 是否正確。")
 
+def get_web_title(user_input):
+    """
+    根據用戶提供的 URL，抓取網頁內容並提取標題。
+    """
+    try:
+        # 使用 trafilatura 抓取網頁內容
+        downloaded = trafilatura.fetch_url(user_input)
+        if downloaded is None:
+            print(f"Failed to download content from {user_input}")
+            return "無法下載該網頁的內容。"  # 返回單個錯誤訊息
+        
+        # 使用 BeautifulSoup 解析網頁來提取標題
+        soup = BeautifulSoup(downloaded, "lxml")
+        title = soup.title.string if soup.title else "無法提取標題"
+        return title
+    
+    except Exception as e:
+        print(f"Error occurred while fetching title: {e}")
+        return "抓取過程中發生錯誤。"  # 捕捉異常並返回錯誤訊息
+    
         
 def process_user_input(user_input):
     """
@@ -430,9 +450,9 @@ def process_user_input(user_input):
         text_array = retrieve_yt_transcript_from_url(user_input)
     elif url_pattern.match(user_input):
         # 如果是一般的 URL，調用網頁抓取函數
-        text_array, title, error = scrape_text_from_url(user_input)
+        text_array,  error = scrape_text_from_url(user_input)
         if error:
-            return [], title, error
+            return [],  error
     else:
         # 處理一般的文字輸入
         text_array = split_user_input(user_input)
@@ -504,12 +524,16 @@ async def handle(action, update, context):
     elif action == 'summarize':
         user_input = update.message.text
         text_array = process_user_input(user_input)  # 使用 process_user_input 來處理輸入
+  
 
         if text_array:
             summary = summarize(text_array)
 
             original_url = user_input  # 假設用戶輸入的是URL
-            summary_with_original = f"{summary}\n\n▶ {original_url}"  # 將原始URL附加到總結後
+            title = get_web_title(user_input)
+     #       summary_with_original = f"{title}\n\n{summary}\n\n▶ {original_url}"  # 將原始URL附加到總結後
+            # 將標題附加到摘要
+            summary_with_original = f"📌 {title}\n\n{summary}\n\n▶ {original_url}"
 
             # 使用 escape_markdown 對 summary_with_original 進行轉義
             summary_with_original_escaped = escape_markdown(summary_with_original, version=2)
