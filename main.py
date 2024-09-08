@@ -507,67 +507,68 @@ async def handle(action, update, context):
         await context.bot.send_message(chat_id=chat_id, text="Sorry, you are not authorized to use this bot.")
         return
 
-    if action == 'start':
-        await context.bot.send_message(chat_id=chat_id, text="我是江家機器人之一。版本20240907。請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。提醒：我無法聊天，所以不要問我問題，我只能總結文章或影片字幕。")
-    elif action == 'help':
-        help_text = """
-        I can summarize text, URLs, PDFs and YouTube video for you. 請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。目前 URL 僅支援公開文章與 YouTube 等網址，尚未支援 Facebook 與 Twitter 貼文，YouTube 的直播影片、私人影片與會員專屬影片也無法總結喔。如要總結 YouTube 影片，請務必一次輸入一個網址，也不要寫字，傳網址就好。
-        Here are the available commands:
-        /start - Start the bot
-        /help - Show this help message
-        /yt2audio <YouTube URL> - Download YouTube audio
-        /yt2text <YouTube URL> - Convert YouTube video to text
-        
-        You can also send me any text or URL to summarize.
-        """
-        await context.bot.send_message(chat_id=chat_id, text=help_text)
-    elif action == 'summarize':
-        user_input = update.message.text
-        text_array = process_user_input(user_input)  # 使用 process_user_input 來處理輸入
-  
+    # 發送「處理中」提示
+    processing_message = await context.bot.send_message(chat_id=chat_id, text="處理中，請稍候...")
 
-        if text_array:
+    try:
+        if action == 'start':
+            await context.bot.edit_message_text(chat_id=chat_id, message_id=processing_message.message_id,
+                                                text="我是江家機器人之一。版本20240908。請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。")
+        elif action == 'help':
+            help_text = """
+            I can summarize text, URLs, PDFs and YouTube video for you. 請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。
+            Here are the available commands:
+            /start - Start the bot
+            /help - Show this help message
+            /yt2audio <YouTube URL> - Download YouTube audio
+            /yt2text <YouTube URL> - Convert YouTube video to text
+            
+            You can also send me any text or URL to summarize.
+            """
+            await context.bot.edit_message_text(chat_id=chat_id, message_id=processing_message.message_id, text=help_text)
+        elif action == 'summarize':
+            user_input = update.message.text
+            text_array = process_user_input(user_input)
+
+            if text_array:
+                summary = summarize(text_array)
+                original_url = user_input
+                title = get_web_title(user_input)
+                summary_with_original = f"📌 {title}\n\n{summary}\n\n▶ {original_url}"
+
+                summary_with_original_escaped = escape_markdown(summary_with_original, version=2)
+
+                # 刪除「處理中」提示，並發送最終摘要結果
+                await context.bot.delete_message(chat_id=chat_id, message_id=processing_message.message_id)
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=summary_with_original_escaped,
+                    parse_mode='MarkdownV2',
+                    reply_markup=get_inline_keyboard_buttons(summary_with_original_escaped)
+                )
+        elif action == 'file':
+            file = await update.message.document.get_file()
+            file_path = f"/tmp/{file.file_id}.pdf"
+            await file.download_to_drive(file_path)
+            
+            reader = PdfReader(file_path)
+            text = ""
+            for page in reader.pages:
+                text += page.extract_text() + "\n"
+
+            os.remove(file_path)
+
+            text_array = text.split("\n")
             summary = summarize(text_array)
 
-            original_url = user_input  # 假設用戶輸入的是URL
-            title = get_web_title(user_input)
-     #       summary_with_original = f"{title}\n\n{summary}\n\n▶ {original_url}"  # 將原始URL附加到總結後
-            # 將標題附加到摘要
-            summary_with_original = f"📌 {title}\n\n{summary}\n\n▶ {original_url}"
+            # 刪除「處理中」提示，並發送總結結果
+            await context.bot.delete_message(chat_id=chat_id, message_id=processing_message.message_id)
+            await context.bot.send_message(chat_id=chat_id, text=summary, reply_markup=get_inline_keyboard_buttons(summary))
 
-            # 使用 escape_markdown 對 summary_with_original 進行轉義
-            summary_with_original_escaped = escape_markdown(summary_with_original, version=2)
-
-            # 发送包含标题、摘要和原始URL的消息
-            await context.bot.send_message(
-                chat_id=chat_id, 
-                text=summary_with_original_escaped, 
-                parse_mode='MarkdownV2',  # 確保使用 MarkdownV2
-                reply_markup=get_inline_keyboard_buttons(summary_with_original_escaped)
-            )
-    elif action == 'file':
-        file = await update.message.document.get_file()
-        file_path = f"/tmp/{file.file_id}.pdf"
-        await file.download_to_drive(file_path)
-        
-        reader = PdfReader(file_path)
-        text = ""
-        for page in reader.pages:
-            text += page.extract_text() + "\n"
-        
-        os.remove(file_path)
-        
-        text_array = text.split("\n")
-        summary = summarize(text_array)
-        await context.bot.send_message(chat_id=chat_id, text=summary, reply_markup=get_inline_keyboard_buttons(summary))
-    elif action == 'button_click':
-        query = update.callback_query
-        await query.answer()
-        
-        if query.data == 'explore_similar':
-            await context.bot.send_message(chat_id=chat_id, text="Here are some similar topics...")
-        elif query.data == 'why_it_matters':
-            await context.bot.send_message(chat_id=chat_id, text="This topic matters because...")           
+    except Exception as e:
+        # 發生錯誤時更新提示為錯誤信息
+        await context.bot.edit_message_text(chat_id=chat_id, message_id=processing_message.message_id, text="發生錯誤，請稍後再試。")
+        print(f"Error: {e}")    
 
 def main():
     try:
