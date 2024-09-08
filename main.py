@@ -39,38 +39,25 @@ def split_user_input(text):
     return paragraphs
 
 def scrape_text_from_url(url):
-    """
-    使用 trafilatura 抓取文章內容，並使用 BeautifulSoup 抓取頁面標題。
-    """
     try:
-        # 使用 trafilatura 抓取網頁內容
         downloaded = trafilatura.fetch_url(url)
         if downloaded is None:
-            return [], "", "無法下載該網頁的內容。"  # 保持三個返回值
+            return [], "無法下載該網頁的內容。"  # 返回兩個值：空內容和錯誤消息
         
-        # 使用 BeautifulSoup 解析網頁來提取標題
-        #soup = BeautifulSoup(downloaded, "lxml")
-        #title = soup.title.string if soup.title else "無法提取標題"
-        
-        # 使用 trafilatura 提取網頁正文
         text = trafilatura.extract(downloaded, include_formatting=True)
         if text is None or text.strip() == "":
-            return [],  "提取的內容為空，可能該網站不支持解析。"  # 返回標題和錯誤信息
+            return [], "提取的內容為空，可能該網站不支持解析。"  # 返回兩個值：空內容和錯誤消息
         
-        # 將提取的內容按照換行符進行分段
         text_chunks = text.split("\n")
-        
-        # 過濾掉空白行，並將每段去掉首尾空格
         article_content = [chunk.strip() for chunk in text_chunks if chunk.strip()]
         
         if not article_content:
-            return [],  "提取的內容為空。"  # 保持一致的返回值結構
+            return [], "提取的內容為空。"  # 返回兩個值：空內容和錯誤消息
         
-        return article_content,  None  # 返回內容、標題和無錯誤
-
+        return article_content, None  # 返回兩個值：內容和無錯誤
     except Exception as e:
         print(f"Error: {e}")
-        return [],  f"抓取過程中發生錯誤：{str(e)}"  # 保持一致的返回值結構
+        return [], f"抓取過程中發生錯誤：{str(e)}"  # 返回兩個值：空內容和錯誤信息
 
 async def search_results(keywords):
     print(keywords, ddg_region)
@@ -450,23 +437,15 @@ def process_user_input(user_input):
         text_array = retrieve_yt_transcript_from_url(user_input)
     elif url_pattern.match(user_input):
         # 如果是一般的 URL，調用網頁抓取函數
-        text_array,  error = scrape_text_from_url(user_input)
+        text_array, error = scrape_text_from_url(user_input)
         if error:
-            return [],  error
+            return [], error
+            
     else:
         # 處理一般的文字輸入
         text_array = split_user_input(user_input)
 
     return text_array
-
-def get_inline_keyboard_buttons(summary_text):
-    encoded_text = requests.utils.quote(summary_text)
-    twitter_url = f"https://twitter.com/intent/tweet?text={encoded_text}"
-
-    keyboard = [
-        [InlineKeyboardButton("Share to Twitter", url=twitter_url)],
-    ]
-    return InlineKeyboardMarkup(keyboard)
 
 def clear_old_commands(telegram_token):
     url = f"https://api.telegram.org/bot{telegram_token}/deleteMyCommands"
@@ -543,8 +522,7 @@ async def handle(action, update, context):
                 await context.bot.send_message(
                     chat_id=chat_id,
                     text=summary_with_original_escaped,
-                    parse_mode='MarkdownV2',
-                    reply_markup=get_inline_keyboard_buttons(summary_with_original_escaped)
+                    parse_mode='MarkdownV2'
                 )
         elif action == 'file':
             file = await update.message.document.get_file()
