@@ -511,47 +511,110 @@ async def handle(action, update, context):
             """
             await context.bot.edit_message_text(chat_id=chat_id, message_id=processing_message.message_id, text=help_text)
         elif action == 'summarize':
-            user_input = update.message.text
-            text_array = process_user_input(user_input)
+            try:
+                user_input = update.message.text
+                text_array = process_user_input(user_input)
 
-            if text_array:
-                summary = summarize(text_array)
-                
-                if is_url(user_input):
-                    original_url = user_input
-                    title = get_web_title(user_input)
-                    summary_with_original = f"📌 {title}\n\n{summary}\n\n▶ {original_url}"
+                if text_array:
+                    summary = summarize(text_array)
+                    
+                    if is_url(user_input):
+                        original_url = user_input
+                        title = get_web_title(user_input)
+                        summary_with_original = f"📌 {title}\n\n{summary}\n\n▶ {original_url}"
+                    else:
+                        summary_with_original = f"📌 \n{summary}\n"
+
+                    summary_with_original_escaped = escape_markdown(summary_with_original, version=2)
+
+                    # 刪除「處理中」提示
+                    await context.bot.delete_message(chat_id=chat_id, message_id=processing_message.message_id)
+
+                    # 處理長消息
+                    if len(summary_with_original_escaped) > 4000:
+                        parts = [summary_with_original_escaped[i:i+4000] for i in range(0, len(summary_with_original_escaped), 4000)]
+                        for part in parts:
+                            await context.bot.send_message(
+                                chat_id=chat_id,
+                                text=part,
+                                parse_mode='MarkdownV2'
+                            )
+                    else:
+                        await context.bot.send_message(
+                            chat_id=chat_id,
+                            text=summary_with_original_escaped,
+                            parse_mode='MarkdownV2'
+                        )
                 else:
-                    summary_with_original = f"📌 \n{summary}\n"
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text="無法處理輸入的文本。請確保提供了有效的文本或URL。"
+                    )
 
-
-                summary_with_original_escaped = escape_markdown(summary_with_original, version=2)
-
-                # 刪除「處理中」提示，並發送最終摘要結果
-                await context.bot.delete_message(chat_id=chat_id, message_id=processing_message.message_id)
+            except Exception as e:
+                print(f"Error in summarize action: {e}")
                 await context.bot.send_message(
                     chat_id=chat_id,
-                    text=summary_with_original_escaped,
-                    parse_mode='MarkdownV2'
+                    text="處理您的請求時發生錯誤，請稍後再試。"
                 )
+        # elif action == 'summarize':
+        #     user_input = update.message.text
+        #     text_array = process_user_input(user_input)
+
+        #     if text_array:
+        #         summary = summarize(text_array)
+                
+        #         if is_url(user_input):
+        #             original_url = user_input
+        #             title = get_web_title(user_input)
+        #             summary_with_original = f"📌 {title}\n\n{summary}\n\n▶ {original_url}"
+        #         else:
+        #             summary_with_original = f"📌 \n{summary}\n"
+
+
+        #         summary_with_original_escaped = escape_markdown(summary_with_original, version=2)
+
+        #         # 刪除「處理中」提示，並發送最終摘要結果
+        #         await context.bot.delete_message(chat_id=chat_id, message_id=processing_message.message_id)
+        #         await context.bot.send_message(
+        #             chat_id=chat_id,
+        #             text=summary_with_original_escaped,
+        #             parse_mode='MarkdownV2'
+        #         )
         elif action == 'file':
-            file = await update.message.document.get_file()
-            file_path = f"/tmp/{file.file_id}.pdf"
-            await file.download_to_drive(file_path)
-            
-            reader = PdfReader(file_path)
-            text = ""
-            for page in reader.pages:
-                text += page.extract_text() + "\n"
+            try:
+                file = await update.message.document.get_file()
+                file_path = f"/tmp/{file.file_id}.pdf"
+                await file.download_to_drive(file_path)
+                
+                reader = PdfReader(file_path)
+                text = ""
+                for page in reader.pages:
+                    text += page.extract_text() + "\n"
 
-            os.remove(file_path)
+                os.remove(file_path)
 
-            text_array = text.split("\n")
-            summary = summarize(text_array)
+                text_array = text.split("\n")
+                summary = summarize(text_array)
 
-            # 刪除「處理中」提示，並發送總結結果
-            await context.bot.delete_message(chat_id=chat_id, message_id=processing_message.message_id)
-            await context.bot.send_message(chat_id=chat_id, text=summary, reply_markup=get_inline_keyboard_buttons(summary))
+                # 轉義 Markdown 特殊字符
+                escaped_summary = escape_markdown(summary, version=2)
+
+                # 刪除「處理中」提示
+                await context.bot.delete_message(chat_id=chat_id, message_id=processing_message.message_id)
+
+                # 如果摘要很長，分多條消息發送
+                if len(escaped_summary) > 4000:
+                    parts = [escaped_summary[i:i+4000] for i in range(0, len(escaped_summary), 4000)]
+                    for part in parts:
+                        await context.bot.send_message(chat_id=chat_id, text=part, parse_mode='MarkdownV2')
+                else:
+                    await context.bot.send_message(chat_id=chat_id, text=escaped_summary, parse_mode='MarkdownV2')
+
+            except Exception as e:
+                print(f"Error processing PDF: {e}")
+                await context.bot.send_message(chat_id=chat_id, text="處理 PDF 時發生錯誤，請稍後再試。")                
+
 
     except Exception as e:
         # 發生錯誤時更新提示為錯誤信息
