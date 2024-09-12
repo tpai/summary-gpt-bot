@@ -477,7 +477,11 @@ def set_my_commands(telegram_token):
         print("Commands set successfully.")
     else:
         print(f"Failed to set commands: {response.text}")
-        
+
+def is_url(text):
+    url_pattern = re.compile(r'https?://\S+|www\.\S+')
+    return bool(url_pattern.match(text))
+
 async def handle(action, update, context):
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
@@ -492,10 +496,11 @@ async def handle(action, update, context):
     try:
         if action == 'start':
             await context.bot.edit_message_text(chat_id=chat_id, message_id=processing_message.message_id,
-                                                text="我是江家機器人之一。版本20240908。請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。")
+                                                text="我是江家機器人之一。版本20240908。我還活著。請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。")
         elif action == 'help':
             help_text = """
-            I can summarize text, URLs, PDFs and YouTube video for you. 請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。
+            I can summarize text, URLs, PDFs and YouTube video for you. 
+            請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為繁體中文的內容。
             Here are the available commands:
             /start - Start the bot
             /help - Show this help message
@@ -511,9 +516,14 @@ async def handle(action, update, context):
 
             if text_array:
                 summary = summarize(text_array)
-                original_url = user_input
-                title = get_web_title(user_input)
-                summary_with_original = f"📌 {title}\n\n{summary}\n\n▶ {original_url}"
+                
+                if is_url(user_input):
+                    original_url = user_input
+                    title = get_web_title(user_input)
+                    summary_with_original = f"📌 {title}\n\n{summary}\n\n▶ {original_url}"
+                else:
+                    summary_with_original = f"📌 \n{summary}\n"
+
 
                 summary_with_original_escaped = escape_markdown(summary_with_original, version=2)
 
