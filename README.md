@@ -100,13 +100,13 @@ If you need to stop or remove the running container, you can use the following c
 - Stop the container:
   - 停止容器：
   ```bash
-  docker stop summary-gpt-bot
+  docker stop telegram-bot-summary
   ```
 
 - Remove the container:
   - 刪除容器：
   ```bash
-  docker rm summary-gpt-bot
+  docker rm telegram-bot-summary
   ```
 
 
