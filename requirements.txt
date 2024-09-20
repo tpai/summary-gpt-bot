@@ -30,3 +30,5 @@ pydub==0.25.1
 
 beautifulsoup4==4.12.3
 lxml==4.9.4
+
+pymongo
