@@ -15,6 +15,10 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, filters, ApplicationBuilder
 from bs4 import BeautifulSoup
 from telegram.helpers import escape_markdown
+from pymongo import MongoClient
+from datetime import datetime
+
+
 
 
 # 從環境變數中取得 OpenAI API Key
@@ -29,7 +33,13 @@ use_audio_fallback = int(os.environ.get("USE_AUDIO_FALLBACK", "0"))
 # 添加 GROQ API Key
 groq_api_key = os.environ.get("GROQ_API_KEY", "YOUR_GROQ_API_KEY")
 base_url = os.environ.get("LLM_BASE_URL", "https://api.openai.com/v1")
-
+# 添加 mongodb 紀錄功能
+mongo_uri = os.environ.get("MONGO_URI", "")
+mongo_client = MongoClient(mongo_uri)
+db = mongo_client["bot_database"]
+summary_collection = db["summaries"]
+# 從環境變量中獲取設置，預設為 1（開啟）
+show_processing = int(os.environ.get("SHOW_PROCESSING", "1"))
 
 
 
@@ -491,12 +501,17 @@ async def handle(action, update, context):
         return
 
     # 發送「處理中」提示
-    processing_message = await context.bot.send_message(chat_id=chat_id, text="處理中，請稍候...")
+    processing_message = None
+    if show_processing:
+        # 只有當 show_processing 為 True 時才發送「處理中」提示
+        processing_message = await context.bot.send_message(chat_id=chat_id, text="處理中，請稍候...")
+
+
 
     try:
         if action == 'start':
             await context.bot.edit_message_text(chat_id=chat_id, message_id=processing_message.message_id,
-                                                text="我是江家機器人之一。版本20240908。我還活著。請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。")
+                                                text="我是江家機器人之一。版本20240921。我還活著。請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。")
         elif action == 'help':
             help_text = """
             I can summarize text, URLs, PDFs and YouTube video for you. 
@@ -527,9 +542,19 @@ async def handle(action, update, context):
 
                     summary_with_original_escaped = escape_markdown(summary_with_original, version=2)
 
-                    # 刪除「處理中」提示
-                    await context.bot.delete_message(chat_id=chat_id, message_id=processing_message.message_id)
+                    # 存儲摘要資訊到 MongoDB
+                    summary_data = {
+                        "telegram_id": user_id,
+                        "url": original_url,
+                        "summary": summary_with_original,
+                        "timestamp": datetime.now()
+                    }
+                    summary_collection.insert_one(summary_data)
 
+                    if show_processing and processing_message:
+                        # 只有當 show_processing 為 True 且 processing_message 存在時才刪除「處理中」提示
+                        await context.bot.delete_message(chat_id=chat_id, message_id=processing_message.message_id)
+ 
                     # 處理長消息
                     if len(summary_with_original_escaped) > 4000:
                         parts = [summary_with_original_escaped[i:i+4000] for i in range(0, len(summary_with_original_escaped), 4000)]
@@ -557,30 +582,7 @@ async def handle(action, update, context):
                     chat_id=chat_id,
                     text="處理您的請求時發生錯誤，請稍後再試。"
                 )
-        # elif action == 'summarize':
-        #     user_input = update.message.text
-        #     text_array = process_user_input(user_input)
 
-        #     if text_array:
-        #         summary = summarize(text_array)
-                
-        #         if is_url(user_input):
-        #             original_url = user_input
-        #             title = get_web_title(user_input)
-        #             summary_with_original = f"📌 {title}\n\n{summary}\n\n▶ {original_url}"
-        #         else:
-        #             summary_with_original = f"📌 \n{summary}\n"
-
-
-        #         summary_with_original_escaped = escape_markdown(summary_with_original, version=2)
-
-        #         # 刪除「處理中」提示，並發送最終摘要結果
-        #         await context.bot.delete_message(chat_id=chat_id, message_id=processing_message.message_id)
-        #         await context.bot.send_message(
-        #             chat_id=chat_id,
-        #             text=summary_with_original_escaped,
-        #             parse_mode='MarkdownV2'
-        #         )
         elif action == 'file':
             try:
                 file = await update.message.document.get_file()
@@ -600,8 +602,9 @@ async def handle(action, update, context):
                 # 轉義 Markdown 特殊字符
                 escaped_summary = escape_markdown(summary, version=2)
 
-                # 刪除「處理中」提示
-                await context.bot.delete_message(chat_id=chat_id, message_id=processing_message.message_id)
+                if show_processing and processing_message:
+                    # 只有當 show_processing 為 True 且 processing_message 存在時才刪除「處理中」提示
+                    await context.bot.delete_message(chat_id=chat_id, message_id=processing_message.message_id)
 
                 # 如果摘要很長，分多條消息發送
                 if len(escaped_summary) > 4000:
