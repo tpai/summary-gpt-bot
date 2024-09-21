@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 from telegram.helpers import escape_markdown
 from pymongo import MongoClient
 from datetime import datetime
+from webvtt import WebVTT
 
 
 
@@ -133,40 +134,52 @@ def summarize(text_array):
         print(f"Error: {e}")
         return "Unknown error! Please contact the owner. ok@vip.david888.com"
 
+def clean_subtitle(subtitle_content):
+    # 移除 WEBVTT 標頭
+    subtitle_content = re.sub(r'WEBVTT\n\n', '', subtitle_content)
+    
+    # 移除時間戳和位置資訊
+    subtitle_content = re.sub(r'\d{2}:\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}:\d{2}\.\d{3}.*\n', '', subtitle_content)
+    
+    # 移除空行
+    subtitle_content = re.sub(r'\n+', '\n', subtitle_content)
+    
+    # 移除行首的數字標記（如果有的話）
+    subtitle_content = re.sub(r'^\d+\n', '', subtitle_content, flags=re.MULTILINE)
+    
+    return subtitle_content.strip()
+
 def extract_youtube_transcript(youtube_url):
     ydl_opts = {
         'writesubtitles': True,
         'writeautomaticsub': True,
         'skip_download': True,
-        'subtitleslangs': ['zh-Hant', 'zh-Hans', 'zh-TW' , 'zh', 'en'],  # 優先順序：繁體中文，簡體中文，中文，英文
+        'subtitleslangs': ['en','zh-Hant', 'zh-Hans', 'zh-TW', 'zh'],
         'outtmpl': '/tmp/%(id)s.%(ext)s',
     }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(youtube_url, download=False)
+            video_id = info['id']
+            
             if 'subtitles' in info or 'automatic_captions' in info:
                 ydl.download([youtube_url])
-                video_id = info['id']
                 
                 subtitle_content = None
-                for lang in ['zh-Hant', 'zh-Hans', 'zh', 'en']:
+                for lang in ['en','zh-Hant', 'zh-Hans', 'zh']:
                     subtitle_file = f"/tmp/{video_id}.{lang}.vtt"
                     if os.path.exists(subtitle_file):
                         with open(subtitle_file, 'r', encoding='utf-8') as file:
                             subtitle_content = file.read()
                         os.remove(subtitle_file)
                         print(f"Found and using {lang} subtitle.")
-                        break  # 找到第一個可用的字幕就停止
-
-                # 刪除所有剩餘的字幕文件
-                for file in os.listdir('/tmp'):
-                    if file.startswith(video_id) and file.endswith('.vtt'):
-                        os.remove(f"/tmp/{file}")
-                        print(f"Removed unused subtitle file: {file}")
+                        break
 
                 if subtitle_content:
-                    return subtitle_content
+                    # 清理字幕內容
+                    cleaned_content = clean_subtitle(subtitle_content)
+                    return cleaned_content
                 else:
                     print("No suitable subtitles found in specified languages.")
                     return "no transcript"
@@ -174,8 +187,9 @@ def extract_youtube_transcript(youtube_url):
                 print("No subtitles or automatic captions available for this video.")
                 return "no transcript"
     except Exception as e:
-        print(f"Error in extract_youtube_transcript: {e}")
-        return "no transcript"
+        print(f"An error occurred: {e}")
+        return "error"
+
 
 
 
@@ -511,7 +525,7 @@ async def handle(action, update, context):
     try:
         if action == 'start':
             await context.bot.edit_message_text(chat_id=chat_id, message_id=processing_message.message_id,
-                                                text="我是江家機器人之一。版本20240921。我還活著。請直接輸入 URL 或想要總結的文字或PDF，無論是何種語言，我都會幫你自動總結為中文的內容。")
+                                                text="我是江家機器人之一。版本20240921。我還活著。我會幫你自動總結為中文的內容。")
         elif action == 'help':
             help_text = """
             I can summarize text, URLs, PDFs and YouTube video for you. 
