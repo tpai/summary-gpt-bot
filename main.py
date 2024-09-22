@@ -514,13 +514,9 @@ async def handle(action, update, context):
         await context.bot.send_message(chat_id=chat_id, text="Sorry, you are not authorized to use this bot.")
         return
 
-    # 發送「處理中」提示
     processing_message = None
     if show_processing:
-        # 只有當 show_processing 為 True 時才發送「處理中」提示
         processing_message = await context.bot.send_message(chat_id=chat_id, text="處理中，請稍候...")
-
-
 
     try:
         if action == 'start':
@@ -552,6 +548,7 @@ async def handle(action, update, context):
                         title = get_web_title(user_input)
                         summary_with_original = f"📌 {title}\n\n{summary}\n\n▶ {original_url}"
                     else:
+                        original_url = None  # 設置為 None，如果不是 URL
                         summary_with_original = f"📌 \n{summary}\n"
 
                     summary_with_original_escaped = escape_markdown(summary_with_original, version=2)
@@ -559,14 +556,13 @@ async def handle(action, update, context):
                     # 存儲摘要資訊到 MongoDB
                     summary_data = {
                         "telegram_id": user_id,
-                        "url": original_url,
+                        "url": original_url,  # 可以是 None
                         "summary": summary_with_original,
                         "timestamp": datetime.now()
                     }
                     summary_collection.insert_one(summary_data)
 
                     if show_processing and processing_message:
-                        # 只有當 show_processing 為 True 且 processing_message 存在時才刪除「處理中」提示
                         await context.bot.delete_message(chat_id=chat_id, message_id=processing_message.message_id)
  
                     # 處理長消息
@@ -617,7 +613,6 @@ async def handle(action, update, context):
                 escaped_summary = escape_markdown(summary, version=2)
 
                 if show_processing and processing_message:
-                    # 只有當 show_processing 為 True 且 processing_message 存在時才刪除「處理中」提示
                     await context.bot.delete_message(chat_id=chat_id, message_id=processing_message.message_id)
 
                 # 如果摘要很長，分多條消息發送
@@ -632,11 +627,12 @@ async def handle(action, update, context):
                 print(f"Error processing PDF: {e}")
                 await context.bot.send_message(chat_id=chat_id, text="處理 PDF 時發生錯誤，請稍後再試。")                
 
-
     except Exception as e:
-        # 發生錯誤時更新提示為錯誤信息
-        await context.bot.edit_message_text(chat_id=chat_id, message_id=processing_message.message_id, text="發生錯誤，請稍後再試。")
-        print(f"Error: {e}")    
+        if processing_message:
+            await context.bot.edit_message_text(chat_id=chat_id, message_id=processing_message.message_id, text="發生錯誤，請稍後再試。")
+        else:
+            await context.bot.send_message(chat_id=chat_id, text="發生錯誤，請稍後再試。")
+        print(f"Error: {e}")
 
 def main():
     try:
