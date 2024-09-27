@@ -592,7 +592,6 @@ async def handle(action, update, context):
                     chat_id=chat_id,
                     text="處理您的請求時發生錯誤，請稍後再試。"
                 )
-
         elif action == 'file':
             try:
                 file = await update.message.document.get_file()
@@ -601,21 +600,35 @@ async def handle(action, update, context):
                 
                 reader = PdfReader(file_path)
                 text = ""
-                for page in reader.pages:
+                total_pages = len(reader.pages)
+                
+                for i, page in enumerate(reader.pages):
                     text += page.extract_text() + "\n"
+                    if i % 10 == 0:  # 每處理 10 頁更新一次進度
+                        progress = f"正在處理 PDF：{i+1}/{total_pages} 頁"
+                        if processing_message:
+                            await context.bot.edit_message_text(chat_id=chat_id, message_id=processing_message.message_id, text=progress)
+                        else:
+                            processing_message = await context.bot.send_message(chat_id=chat_id, text=progress)
 
                 os.remove(file_path)
 
-                text_array = text.split("\n")
-                summary = summarize(text_array)
+                # 分批處理文本，避免一次性處理過多內容
+                chunk_size = 5000  # 每次處理 5000 字符
+                text_chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+                summary = ""
+
+                for chunk in text_chunks:
+                    chunk_summary = summarize([chunk])
+                    summary += chunk_summary + "\n\n"
 
                 # 轉義 Markdown 特殊字符
                 escaped_summary = escape_markdown(summary, version=2)
 
-                if show_processing and processing_message:
+                if processing_message:
                     await context.bot.delete_message(chat_id=chat_id, message_id=processing_message.message_id)
 
-                # 如果摘要很長，分多條消息發送
+                # 分批發送摘要
                 if len(escaped_summary) > 4000:
                     parts = [escaped_summary[i:i+4000] for i in range(0, len(escaped_summary), 4000)]
                     for part in parts:
@@ -625,7 +638,7 @@ async def handle(action, update, context):
 
             except Exception as e:
                 print(f"Error processing PDF: {e}")
-                await context.bot.send_message(chat_id=chat_id, text="處理 PDF 時發生錯誤，請稍後再試。")                
+                await context.bot.send_message(chat_id=chat_id, text=f"處理 PDF 時發生錯誤：{str(e)}，請稍後再試。")
 
     except Exception as e:
         if processing_message:
