@@ -13,11 +13,24 @@ trafilatura==1.9.0
 # duckduckgo
 duckduckgo_search==5.3.0b4
 
-# PDFs
-PyPDF2==3.0.1
 
 # Telegram
 python-telegram-bot==21.1.1
 
 # YouTube
 youtube_transcript_api==0.6.2
+
+# yt-dlp for downloading YouTube audio
+yt-dlp==2024.08.06
+
+# pydub for audio processing
+pydub==0.25.1
+
+beautifulsoup4==4.12.3
+lxml==4.9.4
+
+pymongo
+webvtt-py
+# PDFs
+PyPDF2
+pycryptodome
