@@ -4,9 +4,12 @@
 - USE_AUDIO_FALLBACK=1  //要不要開放無Youtube字幕的處理？ whisper 1是; 0不要
 - GROQ_API_KEY 先準備 groq api key
 - mongoDB 紀錄處理紀錄
+- PDF 過大分批處理
+
   
 <img width="575" alt="image" src="https://github.com/user-attachments/assets/7465b142-7fa1-4889-9f98-d74194ca72e3">
 <img width="600" alt="image" src="https://github.com/user-attachments/assets/c69253fc-24ff-4378-9df0-eb14821cabdd">
+<img width="620" alt="image" src="https://github.com/user-attachments/assets/053e113d-e157-4254-a489-a0da25945a04">
 
 
 ## 示範帳號
